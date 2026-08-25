@@ -3,7 +3,7 @@ WORKDIR /src
 COPY DailyPosterGenerator.csproj .
 RUN dotnet restore DailyPosterGenerator.csproj
 COPY . .
-RUN dotnet publish DailyPosterGenerator.csproj -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish DailyPosterGenerator.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
