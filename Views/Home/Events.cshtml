@@ -1,0 +1,285 @@
+@model EventPreviewViewModel
+@{
+    ViewData["Title"] = "Generate Poster";
+    var currentTenantId = (int)(ViewBag.CurrentTenantId ?? 1);
+    var tenantNames = ViewBag.TenantNames as Dictionary<int, string> ?? new Dictionary<int, string>();
+    string WorkspaceLabel(int tenantId)
+    {
+        if (tenantId == 0 || tenantId == currentTenantId) return string.Empty;
+        var name = tenantNames.TryGetValue(tenantId, out var n) ? n : $"Workspace {tenantId}";
+        return name.Length > 14 ? name[..13] + "…" : name;
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">Generate Today's Poster</h1>
+        <p class="text-muted mb-0">
+            Events detected for <strong id="dateLabel">@Model.Date.ToString("dddd, MMMM d, yyyy")</strong>.
+            Select the ones you want featured, then let AI write the copy and design the poster.
+        </p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <form asp-action="GenerateTodayAuto" asp-controller="Home" method="post">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-gradient">Quick Generate</button>
+        </form>
+        <form asp-action="GenerateAll" asp-controller="Home" method="post"
+              onsubmit="return confirm('Generate a poster on EVERY available template for this date?');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="date" value="@Model.Date.ToString("yyyy-MM-dd")" />
+            <button type="submit" class="btn btn-success">Generate All Templates</button>
+        </form>
+    </div>
+    <a asp-action="DownloadDay" asp-controller="Posters" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+       class="btn btn-outline-secondary">Download Day's Posters</a>
+</div>
+
+<form asp-action="Generate" asp-controller="Home" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="date" id="previewDate" value="@Model.Date.ToString("yyyy-MM-dd")" />
+
+    <div class="card mb-4">
+        <div class="card-body py-3 d-flex align-items-center gap-3 flex-wrap">
+            <label for="datePicker" class="fw-semibold mb-0">📅 Poster date</label>
+            <input type="date" id="datePicker" class="form-control" style="max-width:190px;"
+                   value="@Model.Date.ToString("yyyy-MM-dd")" />
+            <span class="small text-muted">Change the date to load that day's events.</span>
+        </div>
+    </div>
+
+    @if (Model.Templates.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <strong>Choose a template</strong>
+                <span class="small text-muted ms-2">Today's matter is rendered live onto the design you pick.</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+                            @foreach (var t in Model.Templates)
+                            {
+                                var selected = Model.SelectedTemplateId == t.Id
+                                    || (Model.SelectedTemplateId is null && t == Model.Templates.First());
+                                <label class="col template-option @(selected ? "selected" : "")" style="cursor:pointer;">
+                                    <input type="radio" name="templateId" value="@t.Id" class="d-none template-radio" @(selected ? "checked" : "") />
+                                    <div class="card h-100 template-card">
+                                            @if (!string.IsNullOrWhiteSpace(t.ThumbnailPath))
+                                            {
+                                                <div class="template-thumb">
+                                                    <img src="@t.ThumbnailPath" alt="@t.Name" loading="lazy" />
+                                                    @if (t.IsSystem)
+                                                    {
+                                                        <span class="badge text-bg-dark template-badge">System</span>
+                                                    }
+                                                    @{
+                                                        var ws = WorkspaceLabel(t.TenantId);
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(ws))
+                                                    {
+                                                        <span class="badge text-bg-secondary template-badge"
+                                                              style="left:auto; right:.5rem; max-width:60%; overflow:hidden; text-overflow:ellipsis;"
+                                                              title="@tenantNames[t.TenantId]">@ws</span>
+                                                    }
+                                                </div>
+                                            }
+                                        <div class="template-body">
+                                            <div class="fw-semibold">@t.Name</div>
+                                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                                            {
+                                                <div class="small text-muted text-truncate">@t.Description</div>
+                                            }
+                                        </div>
+                                    </div>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header py-2">
+                                <strong>Live preview</strong>
+                                <span class="small text-muted ms-1">today's matter on this template</span>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center p-3">
+                                <div id="previewBox" class="text-center w-100">
+                                    <img id="previewImg" alt="Poster preview" class="img-fluid border rounded preview-img" style="display:none;" />
+                                    <div id="previewLoading" class="text-muted py-5">Loading preview…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><strong>@Model.Events.Count</strong> event(s) found</span>
+            <span class="small text-muted">
+                @(Model.FromApi ? "Source: Wikipedia On-This-Day" : "Source: built-in calendar")
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="list-group" id="eventList">
+                @for (var i = 0; i < Model.Events.Count; i++)
+                {
+                    var item = Model.Events[i];
+                    <label class="list-group-item list-group-item-action">
+                        <input class="form-check-input me-2 event-check" type="checkbox"
+                               name="selectedEvents" value="@i" checked="@item.Selected" />
+                        <span class="badge text-bg-light me-2">@item.Kind</span>
+                        <span class="fw-semibold">@item.Text</span>
+                        @if (item.Year.HasValue)
+                        {
+                            <span class="badge text-bg-dark ms-2">@item.Year</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Url))
+                        {
+                            <a href="@item.Url" target="_blank" rel="noopener" class="stretched-link"></a>
+                        }
+                    </label>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label fw-semibold" for="customEvent">Add your own headline (optional)</label>
+            <input type="text" id="customEvent" name="customEvent" class="form-control"
+                   placeholder="e.g. National Space Day" maxlength="300" />
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+        <button type="submit" class="btn btn-lg btn-gradient">Generate Poster</button>
+        <span class="small text-muted">Selected: <span id="selectedCount">@Model.Events.Count(e => e.Selected)</span> event(s)</span>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        (function () {
+            const listEl = document.getElementById('eventList');
+            const counter = document.getElementById('selectedCount');
+            const picker = document.getElementById('datePicker');
+
+            const checkedBoxes = () => Array.from(listEl.querySelectorAll('.event-check'));
+            const update = () => {
+                counter.textContent = checkedBoxes().filter(c => c.checked).length;
+            };
+
+            const escapeHtml = s => String(s).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+
+            const renderEvents = (data) => {
+                listEl.innerHTML = (data.events || []).map((e, i) => {
+                    const year = e.year ? '<span class="badge text-bg-dark ms-2">' + escapeHtml(e.year) + '</span>' : '';
+                    const link = e.url ? '<a href="' + escapeHtml(e.url) + '" target="_blank" rel="noopener" class="stretched-link"></a>' : '';
+                    return '<label class="list-group-item list-group-item-action">'
+                        + '<input class="form-check-input me-2 event-check" type="checkbox" name="selectedEvents" value="' + i + '" checked />'
+                        + '<span class="badge text-bg-light me-2">' + escapeHtml(e.kind || 'event') + '</span>'
+                        + '<span class="fw-semibold">' + escapeHtml(e.text) + '</span>'
+                        + year + link
+                        + '</label>';
+                }).join('');
+            };
+
+            // Delegated listeners survive the list being re-rendered for a new date.
+            listEl.addEventListener('change', () => {
+                update();
+                schedule();
+            });
+
+            // Switching the date refreshes the event checklist in place — anything typed
+            // into the headline box is kept, and the live preview follows along.
+            if (picker) {
+                picker.addEventListener('change', async () => {
+                    if (!picker.value) return;
+                    try {
+                        const r = await fetch('/Home/EventsList?date=' + encodeURIComponent(picker.value), { cache: 'no-store' });
+                        if (!r.ok) throw new Error('events load failed');
+                        const data = await r.json();
+                        renderEvents(data);
+                        document.getElementById('dateLabel').textContent =
+                            new Date(data.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                        dateInput.value = data.date;
+                        update();
+                        schedule();
+                    } catch {
+                        window.location.href = '@Url.Action("Events", "Home")' + '?date=' + encodeURIComponent(picker.value);
+                    }
+                });
+            }
+
+            const img = document.getElementById('previewImg');
+            const loading = document.getElementById('previewLoading');
+            const dateInput = document.getElementById('previewDate');
+            const customInput = document.getElementById('customEvent');
+            const radios = document.querySelectorAll('.template-radio');
+            let timer = null;
+            let requestSeq = 0;
+
+            const selectedEvents = () => checkedBoxes()
+                .filter(c => c.checked)
+                .map(c => c.value)
+                .join(',');
+
+            const refreshPreview = () => {
+                const tpl = Array.from(radios).find(r => r.checked);
+                if (!tpl) {
+                    img.style.display = 'none';
+                    loading.style.display = '';
+                    loading.textContent = 'Select a template to preview today\u2019s matter on it.';
+                    return;
+                }
+
+                loading.style.display = '';
+                loading.textContent = 'Loading preview…';
+                const seq = ++requestSeq;
+                const params = new URLSearchParams({
+                    date: dateInput.value,
+                    templateId: tpl.value,
+                    events: selectedEvents(),
+                    customEvent: customInput ? customInput.value : ''
+                });
+                fetch('/Home/Preview?' + params.toString(), { cache: 'no-store' })
+                    .then(r => {
+                        if (!r.ok) throw new Error('preview failed');
+                        return r.blob();
+                    })
+                    .then(blob => {
+                        if (seq !== requestSeq) return;
+                        img.src = URL.createObjectURL(blob);
+                        img.style.display = '';
+                        loading.style.display = 'none';
+                    })
+                    .catch(() => {
+                        if (seq !== requestSeq) return;
+                        loading.style.display = '';
+                        loading.textContent = 'Preview could not be rendered.';
+                    });
+            };
+
+            const schedule = () => {
+                clearTimeout(timer);
+                timer = setTimeout(refreshPreview, 400);
+            };
+
+            radios.forEach(r => r.addEventListener('change', () => {
+                document.querySelectorAll('.template-option').forEach(o => o.classList.remove('selected'));
+                const label = r.closest('.template-option');
+                if (label) label.classList.add('selected');
+                schedule();
+            }));
+            if (customInput) customInput.addEventListener('input', schedule);
+
+            refreshPreview();
+        })();
+    </script>
+}

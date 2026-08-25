@@ -1,0 +1,193 @@
+@model PosterDetailsViewModel
+@{
+    ViewData["Title"] = Model.Poster.Title;
+    var poster = Model.Poster;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a asp-action="Index" class="text-muted small">&larr; Back to gallery</a>
+        <h1 class="mb-0 mt-1">@poster.Title</h1>
+        <div class="d-flex gap-2 mt-2 align-items-center">
+            <span class="badge @StatusBadgeClass(poster.Status)">@poster.Status</span>
+            <span class="badge text-bg-light">@(poster.Category ?? "General")</span>
+            @if (!string.IsNullOrWhiteSpace(poster.TemplateName))
+            {
+                <span class="badge text-bg-secondary">@poster.TemplateName</span>
+            }
+            <small class="text-muted">@poster.AiProvider</small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        @if (poster.Status != PosterStatus.Failed)
+        {
+            <partial name="_PosterShare"
+                     model='@(poster.Id,
+                              Url.Action("Image", "Posters", new { id = poster.Id }) ?? "",
+                              poster.Caption + " " + poster.Hashtags,
+                              "btn-success")' />
+        }
+        <a asp-action="DownloadImage" asp-route-id="@poster.Id" class="btn btn-gradient">Download PNG</a>
+        <a asp-action="DownloadCaption" asp-route-id="@poster.Id" class="btn btn-outline-secondary">Download Caption</a>
+        <form asp-action="Delete" asp-route-id="@poster.Id" method="post"
+              onsubmit="return confirm('Delete this poster? This cannot be undone.');">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-danger">Delete</button>
+        </form>
+    </div>
+</div>
+
+@if (poster.Status == PosterStatus.Failed)
+{
+    <div class="alert alert-danger">
+        <strong>Generation failed:</strong> @poster.ErrorMessage
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-md-5 col-lg-4">
+        <div class="card poster-card shadow-sm">
+            <img src="@Url.Action("Image", "Posters", new { id = poster.Id })"
+                 class="card-img-top" alt="@poster.EventTitle" />
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header fw-semibold">Featuring @poster.Events.Count event(s)</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var e in poster.Events)
+                {
+                    <li class="list-group-item">
+                        <span class="badge text-bg-light me-1">@e.Kind</span>
+                        <span>@e.Text</span>
+                        @if (e.Year.HasValue)
+                        {
+                            <div class="small text-muted">@e.Year</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(e.Url))
+                        {
+                            <div><a href="@e.Url" target="_blank" rel="noopener" class="small">Wikipedia &rarr;</a></div>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-md-7 col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Caption &amp; Hashtags</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="copyAll">Copy All</button>
+            </div>
+            <div class="card-body">
+                <p class="card-text" id="captionText">@poster.Caption</p>
+                <p class="card-text text-primary small" id="hashtagText">@poster.Hashtags</p>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header fw-semibold">Publish</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Publish pushes the caption + hashtags + image to the enabled platforms configured in Settings.
+                    Platforms without a webhook are recorded as locally published.
+                </p>
+                <form asp-action="Publish" asp-route-id="@poster.Id" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-success">
+                        @(poster.Status == PosterStatus.Published ? "Republish" : "Publish Now")
+                    </button>
+                </form>
+                <form asp-action="Regenerate" asp-route-id="@poster.Id" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-warning">Regenerate</button>
+                </form>
+                <form asp-action="RegenerateKeepLogos" asp-route-id="@poster.Id" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-warning" title="Re-render keeping logos but removing all text layers">Keep Logos, Remove Text</button>
+                </form>
+
+                @if (Model.EnabledPlatforms.Count > 0)
+                {
+                    <div class="mt-3">
+                        <div class="small text-muted mb-2">Target platforms:</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var platform in Model.EnabledPlatforms)
+                            {
+                                var done = Model.IsPublishedTo(platform);
+                                <span class="badge @(done ? "text-bg-success" : "text-bg-light")">
+                                    @platform.Name @(done ? "✓" : "")
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-3 alert alert-light border small mb-0">
+                        No platforms enabled yet. Enable one in <a asp-controller="Settings" asp-action="Index">Settings</a>.
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(poster.PublishedAt.ToString()))
+                {
+                    <div class="mt-3 small text-muted">
+                        @if (poster.PublishedAt.HasValue)
+                        {
+                            <span>Last published: @poster.PublishedAt.Value.ToLocalTime().ToString("g")</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <div class="small text-muted">
+                    Created: @poster.CreatedAt.ToLocalTime().ToString("g") &middot;
+                    Generated: @(poster.GeneratedAt?.ToLocalTime().ToString("g") ?? "—") &middot;
+                    Source: @poster.Source
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const caption = document.getElementById('captionText');
+            const hashtags = document.getElementById('hashtagText');
+            const copyBtn = document.getElementById('copyAll');
+
+            copyBtn.addEventListener('click', async () => {
+                const text = (caption.textContent + '\n\n' + hashtags.textContent).trim();
+                try {
+                    await navigator.clipboard.writeText(text);
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.classList.remove('btn-outline-primary');
+                    copyBtn.classList.add('btn-success');
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy All';
+                        copyBtn.classList.add('btn-outline-primary');
+                        copyBtn.classList.remove('btn-success');
+                    }, 1500);
+                } catch {
+                    alert('Could not access clipboard. Select and copy manually.');
+                }
+            });
+        })();
+    </script>
+}
+
+@functions
+{
+    private static string StatusBadgeClass(PosterStatus status) => status switch
+    {
+        PosterStatus.Published => "text-bg-success",
+        PosterStatus.Ready => "text-bg-primary",
+        PosterStatus.Draft => "text-bg-secondary",
+        PosterStatus.Failed => "text-bg-danger",
+        _ => "text-bg-secondary"
+    };
+}

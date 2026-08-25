@@ -1,0 +1,156 @@
+@model SubscriptionIndexViewModel
+@{
+    ViewData["Title"] = "Subscription";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-0">Subscription &amp; Plans</h1>
+        <p class="text-muted mb-0">Manage credits, features, and billing for this tenant.</p>
+    </div>
+    <div>
+        @if (Model.Subscription is not null && Model.Subscription.Status == SubscriptionStatus.Active)
+        {
+            <span class="badge text-bg-success p-2">Active</span>
+        }
+        else if (Model.Subscription is not null)
+        {
+            <span class="badge text-bg-secondary p-2">@Model.Subscription.Status</span>
+        }
+        else
+        {
+            <span class="badge text-bg-warning p-2">No subscription</span>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    @if (Model.Subscription is not null)
+    {
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Current Subscription</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="text-muted small">Plan</div>
+                            <div class="fs-5 fw-semibold">@(Model.Subscription.Plan?.Name ?? Model.Subscription.PlanId.ToString())</div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-muted small">Billing</div>
+                            <div>@(Model.Subscription.BillingCycle == BillingCycle.Monthly ? "Monthly" : "Yearly")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small">Current period</div>
+                            <div>
+                                @(Model.Subscription.CurrentPeriodStart?.ToString("dd MMM yyyy") ?? "—")
+                                &rarr;
+                                @(Model.Subscription.CurrentPeriodEnd?.ToString("dd MMM yyyy") ?? "—")
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted small">Credits</div>
+                            <div class="fw-semibold">@Model.CreditsAvailable <span class="text-muted fw-normal">/ @Model.CreditsAllowance</span></div>
+                            @if (Model.CreditsAllowance > 0)
+                            {
+                                <div class="progress mt-1" style="height: 6px;">
+                                    <div class="progress-bar"
+                                         style="width: @(Math.Min(100, (int)((double)Model.CreditsAvailable / Model.CreditsAllowance * 100)))%"></div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    @if (Model.Subscription.CancelAtPeriodEnd is not null)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0 py-2">
+                            This subscription will end on @Model.Subscription.CancelAtPeriodEnd.Value.ToString("dd MMM yyyy").
+                        </div>
+                    }
+                    @if (Model.Subscription.TrialEndsAt is not null)
+                    {
+                        <div class="alert alert-info mt-3 mb-0 py-2">
+                            Trial ends on @Model.Subscription.TrialEndsAt.Value.ToString("dd MMM yyyy").
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @foreach (var plan in Model.Plans)
+    {
+        var isCurrent = Model.Subscription?.Plan?.Code == plan.Code;
+        var monthlyPrice = plan.PricePerMonth;
+        var yearlyPrice = plan.PricePerYear;
+
+        <div class="col-md-6 col-xl-3">
+            <div class="card h-100 @(isCurrent ? "border-primary" : "")">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">@plan.Name</span>
+                    @if (isCurrent)
+                    {
+                        <span class="badge text-bg-primary">Current</span>
+                    }
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-2">
+                        <span class="fs-3 fw-bold">&#8377;@monthlyPrice.ToString("N0")</span>
+                        <span class="text-muted">/ month</span>
+                    </div>
+                    <div class="text-muted small mb-3">
+                        &#8377;@yearlyPrice.ToString("N0") / year
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(plan.Description))
+                    {
+                        <p class="text-muted small">@plan.Description</p>
+                    }
+                    <ul class="list-unstyled small mb-3">
+                        <li class="mb-1">&#10003; @plan.MonthlyCreditAllowance credits / month</li>
+                        <li class="mb-1">&#10003; @plan.MaxUsers user@(plan.MaxUsers == 1 ? "" : "s")</li>
+                        @if (plan.AllowsAiGeneration)
+                        {
+                            <li class="mb-1">&#10003; AI caption generation</li>
+                        }
+                        @if (plan.AllowsAiImageGeneration)
+                        {
+                            <li class="mb-1">&#10003; AI image generation</li>
+                        }
+                        @if (plan.AllowsBackgroundRemoval)
+                        {
+                            <li class="mb-1">&#10003; Background removal</li>
+                        }
+                        @if (plan.AllowsUpscale)
+                        {
+                            <li class="mb-1">&#10003; Image upscale</li>
+                        }
+                        @if (plan.AllowsContentRewrite)
+                        {
+                            <li class="mb-1">&#10003; Content rewrite</li>
+                        }
+                        @if (plan.AllowsCustomBranding)
+                        {
+                            <li class="mb-1">&#10003; Custom branding</li>
+                        }
+                        @if (plan.AllowsExport)
+                        {
+                            <li class="mb-1">&#10003; HD export</li>
+                        }
+                        @if (plan.AllowsPublishing)
+                        {
+                            <li class="mb-1">&#10003; Publish to platforms</li>
+                        }
+                        @if (plan.AllowsPrioritySupport)
+                        {
+                            <li class="mb-1">&#10003; Priority support</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="alert alert-light border mt-4 small text-muted">
+    Subscribing and changing plans is available through the API
+    (<code>POST /api/subscriptions</code>, <code>POST /api/subscriptions/change-plan</code>).
+</div>

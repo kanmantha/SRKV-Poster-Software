@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: srkv-poster-software
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: UseSqlite
+        value: true
+      - key: Jwt__SigningKey
+        value: SRKV-Render-Deploy-Poster-2026-Change-Me-At-Later
+      - key: SaaS__AdminEmail
+        value: admin@srkv.ac.in
+      - key: SaaS__AdminPassword
+        value: Admin@12345
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+    healthCheckPath: /
+    plan: free
+    region: oregon

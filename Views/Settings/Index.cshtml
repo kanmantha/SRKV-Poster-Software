@@ -1,0 +1,222 @@
+@model SettingsViewModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-0">Settings</h1>
+        <p class="text-muted mb-0">AI provider, scheduled generation, and publish targets.</p>
+    </div>
+    <div>
+        @if (Model.AiActuallyConfigured)
+        {
+            <span class="badge text-bg-success p-2">AI connected</span>
+        }
+        else
+        {
+            <span class="badge text-bg-warning p-2">Using built-in templates</span>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <form asp-action="Save" method="post">
+            @Html.AntiForgeryToken()
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">AI Configuration</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="AiEnabled" class="form-check-input" type="checkbox" />
+                        <label asp-for="AiEnabled" class="form-check-label">Enable AI text generation</label>
+                        <div class="form-text">When disabled, captions and hashtags are built locally.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="AiEndpoint" class="form-label">API Endpoint</label>
+                        <input asp-for="AiEndpoint" class="form-control" placeholder="https://api.openai.com/v1" />
+                        <div class="form-text">Any OpenAI-compatible base URL (OpenAI, Azure, Groq, Ollama, LM Studio).</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="AiApiKey" class="form-label">API Key</label>
+                        <input asp-for="AiApiKey" class="form-control" type="password" autocomplete="off" placeholder="sk-..." />
+                        <div class="form-text">Stored in the database. Leave blank to use built-in templates.</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="AiChatModel" class="form-label">Chat Model</label>
+                            <input asp-for="AiChatModel" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="AiImageModel" class="form-label">Image Model</label>
+                            <input asp-for="AiImageModel" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="AiGenerateImages" class="form-check-input" type="checkbox" />
+                        <label asp-for="AiGenerateImages" class="form-check-label">Generate AI background images</label>
+                        <div class="form-text">Uses the image model for the poster backdrop. Falls back to the built-in template on failure.</div>
+                    </div>
+
+                    <div class="mb-3" style="max-width: 200px;">
+                        <label asp-for="AiTimeoutSeconds" class="form-label">Timeout (seconds)</label>
+                        <input asp-for="AiTimeoutSeconds" class="form-control" type="number" min="10" max="300" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Daily Scheduler</div>
+                <div class="card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="SchedulerEnabled" class="form-check-input" type="checkbox" />
+                        <label asp-for="SchedulerEnabled" class="form-check-label">Auto-generate today's poster</label>
+                    </div>
+                    <div class="mb-2" style="max-width: 200px;">
+                        <label asp-for="SchedulerTime" class="form-label">Time (UTC)</label>
+                        <input asp-for="SchedulerTime" class="form-control" placeholder="06:00" />
+                        <div class="form-text">A poster is skipped if one already exists for the day.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Business Logo</div>
+                <div class="card-body">
+                    @if (ViewBag.TenantLogo is string tenantLogo && !string.IsNullOrWhiteSpace(tenantLogo))
+                    {
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <img src="@tenantLogo" alt="Your logo" class="border rounded bg-light p-1"
+                                 style="max-height:72px; max-width:180px; object-fit:contain;" />
+                            <form asp-action="RemoveLogo" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                            </form>
+                        </div>
+                    }
+                    <form asp-action="UploadLogo" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center flex-wrap">
+                        @Html.AntiForgeryToken()
+                        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" class="form-control" style="max-width:320px;" required />
+                        <button type="submit" class="btn btn-gradient">Upload Logo</button>
+                    </form>
+                    <div class="form-text mt-2">PNG / JPG / WEBP up to 2 MB. Drawn top-right on newly generated posters.</div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Poster Design</div>
+                <div class="card-body">
+                    <label asp-for="PosterTheme" class="form-label">Theme</label>
+                    <select asp-for="PosterTheme" class="form-select" style="max-width: 260px;">
+                        <option value="auto">Auto (mix)</option>
+                        <option value="srv">Classic editorial</option>
+                        <option value="colorful">Colorful (vibrant)</option>
+                        <option value="light">Light editorial</option>
+                        <option value="dark">Dark gradient</option>
+                    </select>
+                    <div class="form-text">Applies to newly generated posters.</div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header fw-semibold">Branding (poster footer)</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="OrganizationName" class="form-label">Organization name</label>
+                        <input asp-for="OrganizationName" class="form-control" placeholder="Your school, restaurant, club or shop" />
+                        <div class="form-text">Leave blank to hide the footer.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="OrganizationCity" class="form-label">City</label>
+                        <input asp-for="OrganizationCity" class="form-control" placeholder="Your city" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="OrganizationTagline" class="form-label">Tagline</label>
+                        <input asp-for="OrganizationTagline" class="form-control" placeholder="e.g. Quality food, honest prices" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="OrganizationFacebook" class="form-label">Facebook</label>
+                            <input asp-for="OrganizationFacebook" class="form-control" placeholder="@@page" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="OrganizationInstagram" class="form-label">Instagram</label>
+                            <input asp-for="OrganizationInstagram" class="form-control" placeholder="@@handle" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="OrganizationPhones" class="form-label">Phone(s)</label>
+                            <input asp-for="OrganizationPhones" class="form-control" placeholder="Numbers separated by space" />
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="OrganizationShowValues" class="form-check-input" type="checkbox" />
+                        <label asp-for="OrganizationShowValues" class="form-check-label">Show values strip</label>
+                    </div>
+                    <div class="mb-2">
+                        <label asp-for="OrganizationValues" class="form-label">Values (comma separated)</label>
+                        <input asp-for="OrganizationValues" class="form-control" placeholder="Quality,Service,Trust,Excellence,Community" />
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-gradient btn-lg">Save Settings</button>
+            <span asp-validation-summary="ModelOnly" class="text-danger"></span>
+        </form>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header fw-semibold">Publish Platforms</div>
+            <div class="card-body">
+                <div class="small text-muted mb-3">
+                    Enable platforms to send the caption, hashtags, and poster image when you click Publish.
+                    Add a webhook URL (e.g. an automation / API gateway endpoint) to push content automatically.
+                </div>
+
+                @foreach (var platform in Model.Platforms)
+                {
+                    <form asp-action="SavePlatform" method="post" class="border rounded p-3 mb-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="Id" value="@platform.Id" />
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="Enabled" value="true"
+                                       id="enabled-@platform.Id" checked="@platform.Enabled" />
+                                <label class="form-check-label fw-semibold" for="enabled-@platform.Id">@platform.Name</label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                        </div>
+                        <input type="hidden" name="Name" value="@platform.Name" />
+                        <div class="mb-2">
+                            <input class="form-control form-control-sm" name="AccountHandle" placeholder="Handle / page"
+                                   value="@platform.AccountHandle" />
+                        </div>
+                        <div class="mb-2">
+                            <input class="form-control form-control-sm" name="WebhookUrl" placeholder="Webhook URL (optional)"
+                                   value="@platform.WebhookUrl" />
+                        </div>
+                    </form>
+                }
+
+                <form asp-action="SavePlatform" method="post" class="border rounded p-3">
+                    @Html.AntiForgeryToken()
+                    <div class="small fw-semibold text-muted mb-2">Add platform</div>
+                    <div class="mb-2">
+                        <input class="form-control form-control-sm" name="Name" placeholder="Platform name" required maxlength="100" />
+                    </div>
+                    <div class="mb-2">
+                        <input class="form-control form-control-sm" name="AccountHandle" placeholder="Handle / page" />
+                    </div>
+                    <div class="mb-2">
+                        <input class="form-control form-control-sm" name="WebhookUrl" placeholder="Webhook URL (optional)" />
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-success">Add Platform</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

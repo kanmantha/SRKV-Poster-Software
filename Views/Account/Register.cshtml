@@ -1,0 +1,58 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "Create Account";
+}
+
+<div class="auth-wrap">
+    <div class="auth-card">
+        <h1 class="auth-title">Create your account</h1>
+        <p class="text-muted mb-4">Start a 14-day free trial. No payment details required.</p>
+
+        <form asp-action="Register" method="post" novalidate>
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="mb-3">
+                <label asp-for="DisplayName" class="form-label">Your name</label>
+                <input asp-for="DisplayName" class="form-control" autofocus />
+                <span asp-validation-for="DisplayName" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="OrganizationName" class="form-label">Organization / Business name</label>
+                <input asp-for="OrganizationName" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label asp-for="Sector" class="form-label">What do you do?</label>
+                <select asp-for="Sector" class="form-select">
+                    @foreach (var (value, label) in Model.SectorOptions)
+                    {
+                        <option value="@value">@label</option>
+                    }
+                </select>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label">Work email</label>
+                <input asp-for="Email" class="form-control" autocomplete="email" />
+                <span asp-validation-for="Email" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">Password</label>
+                <input asp-for="Password" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="Password" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="ConfirmPassword" class="form-label">Confirm password</label>
+                <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+            </div>
+            <button type="submit" class="btn btn-gradient w-100 py-2 fw-semibold">Start Free Trial</button>
+        </form>
+
+        <div class="text-center mt-4 small">
+            Already have an account? <a asp-action="Login">Sign in</a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,92 @@
+@model List<PosterTemplate>
+@{
+    ViewData["Title"] = "Templates";
+    var currentTenantId = (int)(ViewBag.CurrentTenantId ?? 1);
+    var isAdmin = (bool)(ViewBag.IsAdmin ?? false);
+    var tenantNames = ViewBag.TenantNames as Dictionary<int, string> ?? new Dictionary<int, string>();
+    string WorkspaceLabel(int tenantId)
+    {
+        if (tenantId == 0 || tenantId == currentTenantId) return string.Empty;
+        var name = tenantNames.TryGetValue(tenantId, out var n) ? n : $"Workspace {tenantId}";
+        return name.Length > 18 ? name[..17] + "…" : name;
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">Poster Templates</h1>
+        <p class="text-muted mb-0">
+            Pick a design for today's posters, or create your own. System templates are available to everyone.
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-gradient">New Template</a>
+        <a asp-action="Import" class="btn btn-outline-primary">Upload Old Poster</a>
+    </div>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <p>No templates yet. Create your first one, or wait for the system templates to appear.</p>
+    </div>
+}
+
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
+    @foreach (var t in Model)
+    {
+        <div class="col">
+            <div class="template-card h-100 d-flex flex-column">
+                <div class="template-thumb">
+                    @if (!string.IsNullOrWhiteSpace(t.ThumbnailPath))
+                    {
+                        <img src="@t.ThumbnailPath" alt="@t.Name" loading="lazy" />
+                    }
+                    <span class="badge template-badge @(t.IsSystem ? "text-bg-dark" : t.TenantId == currentTenantId ? "text-bg-primary" : "text-bg-secondary")">
+                        @(t.IsSystem ? "System" : t.TenantId == currentTenantId ? "Yours" : "Other")
+                    </span>
+                    @if (t.IsImported)
+                    {
+                        <span class="badge text-bg-info template-badge" style="left: auto; right: .5rem;">Imported</span>
+                    }
+                    else if (!t.IsActive)
+                    {
+                        <span class="badge text-bg-warning template-badge" style="left: auto; right: .5rem;">Inactive</span>
+                    }
+                </div>
+                <div class="template-body d-flex flex-column flex-grow-1">
+                    <div class="fw-semibold">@t.Name</div>
+                    <div class="small text-muted flex-grow-1">
+                        @(string.IsNullOrWhiteSpace(t.Description) ? "No description." : t.Description)
+                    </div>
+                    <div class="small text-muted mb-2">
+                        Theme: <strong>@t.Theme</strong>
+                        @if (!string.IsNullOrWhiteSpace(t.Sector))
+                        {
+                            <span class="text-secondary">·</span> @SectorCatalog.Label(t.Sector)
+                        }
+                        @{
+                            var ws = WorkspaceLabel(t.TenantId);
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ws))
+                        {
+                            <span class="text-secondary">·</span> <span title="@tenantNames[t.TenantId]">@ws</span>
+                        }
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-sm btn-gradient" asp-action="Use" asp-route-id="@t.Id">Use</a>
+                        @if (!t.IsSystem)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@t.Id">Edit</a>
+                            <form asp-action="Delete" asp-route-id="@t.Id" method="post"
+                                  onsubmit="return confirm('Delete template \'@t.Name\'?');" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

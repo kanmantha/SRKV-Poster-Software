@@ -1,0 +1,73 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "stop-stale-instance",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/.vscode/stop-stale.ps1"
+            ],
+            "problemMatcher": [],
+            "detail": "Stops leftover DailyPosterGenerator processes so the DLL is not locked during build"
+        },
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/DailyPosterGenerator.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn": ["stop-stale-instance"]
+        },
+        {
+            "label": "start-app",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "run",
+                "--project",
+                "${workspaceFolder}/DailyPosterGenerator.csproj",
+                "--launch-profile",
+                "http"
+            ],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": [
+                {
+                    "owner": "csharp",
+                    "pattern": [
+                        {
+                            "regexp": "^(.*)$",
+                            "file": 0,
+                            "location": 0,
+                            "message": 0
+                        }
+                    ],
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": "Now listening on",
+                        "endsPattern": "Application started"
+                    }
+                }
+            ],
+            "dependsOn": ["stop-stale-instance"]
+        }
+    ]
+}

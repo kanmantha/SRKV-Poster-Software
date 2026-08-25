@@ -1,0 +1,11 @@
+# Secrets & local configuration (contains DB connection, API keys, admin password)
+appsettings.json
+
+# Generated poster output + live previews
+wwwroot/posters/
+
+# Generated template thumbnails + imported backgrounds
+wwwroot/templates/
+
+# SQLite database (created at runtime)
+data/

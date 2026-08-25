@@ -1,0 +1,74 @@
+@model PosterTemplate
+@{
+    ViewData["Title"] = "New Template";
+    var themes = ViewBag.ThemeOptions as string[] ?? new[] { "srv", "colorful", "light", "dark", "auto" };
+}
+
+<div class="auth-wrap" style="display:block;">
+    <div class="auth-card" style="max-width:560px;">
+        <h1 class="auth-title">Create a template</h1>
+        <p class="text-muted mb-4">A template controls the look of your posters. Today's events are always rendered on top of it.</p>
+
+        <form asp-action="Create" method="post" novalidate>
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Template name</label>
+                <input asp-for="Name" class="form-control" autofocus />
+                <span asp-validation-for="Name" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Sector" class="form-label">Sector</label>
+                <select asp-for="Sector" class="form-select">
+                    @foreach (var s in SectorCatalog.All)
+                    {
+                        <option value="@s">@SectorCatalog.Label(s)</option>
+                    }
+                </select>
+                <span class="form-text small text-muted">Templates for your sector are preferred automatically.</span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Description</label>
+                <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Theme" class="form-label">Theme</label>
+                <select asp-for="Theme" class="form-select">
+                    @foreach (var th in themes)
+                    {
+                        <option value="@th">@char.ToUpperInvariant(th[0])@th.Substring(1)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="AccentColor" class="form-label">Accent color (optional)</label>
+                <div class="input-group">
+                    <input type="color" value="@(string.IsNullOrWhiteSpace(Model.AccentColor) ? "#FF6600" : Model.AccentColor)"
+                           oninput="document.getElementById('accentHex').value = this.value;" class="form-control form-control-color" />
+                    <input type="text" id="accentHex" asp-for="AccentColor" class="form-control"
+                           placeholder="#RRGGBB (blank = theme default)" maxlength="20" />
+                </div>
+                <span asp-validation-for="AccentColor" class="text-danger small"></span>
+            </div>
+
+            <div class="form-check mb-4">
+                <input asp-for="IsActive" class="form-check-input" />
+                <label asp-for="IsActive" class="form-check-label">Active (available when generating)</label>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-gradient">Create Template</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

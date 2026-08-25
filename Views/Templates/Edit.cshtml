@@ -1,0 +1,637 @@
+@model PosterTemplate
+@{
+    ViewData["Title"] = "Edit Template";
+    var themes = ViewBag.ThemeOptions as string[] ?? new[] { "srv", "colorful", "light", "dark", "auto" };
+    var posterSource = !string.IsNullOrWhiteSpace(Model.OriginalBackgroundPath)
+        ? Model.OriginalBackgroundPath
+        : Model.BackgroundImagePath;
+    var canEditPoster = Model.IsImported && !string.IsNullOrWhiteSpace(posterSource);
+}
+
+<style>
+    .edit-hero { background: linear-gradient(135deg, var(--bs-primary-bg-subtle) 0%, var(--bs-body-bg) 100%); border-radius: 16px; padding: 2rem 2.5rem; margin-bottom: 1.5rem; }
+    .edit-hero h1 { font-weight: 800; letter-spacing: -0.03em; }
+    .step-card { border: 1px solid rgba(0,0,0,.06); border-radius: 14px; transition: box-shadow .2s; }
+    .step-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+    .tool-btn { border-radius: 10px; padding: .5rem 1rem; font-weight: 600; font-size: .82rem; border-width: 2px; transition: all .15s; }
+    .tool-btn.active { box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb),.25); }
+    .canvas-frame { background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 16px 16px; border-radius: 12px; padding: 8px; border: 1px solid rgba(0,0,0,.08); }
+    #editCanvas { border-radius: 8px; cursor: crosshair; display: block; width: 100%; }
+    .ai-card { border: 2px solid rgba(var(--bs-primary-rgb),.18); border-radius: 14px; background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),.03) 0%, transparent 100%); }
+    .ai-card .card-header { background: transparent; border-bottom: 1px solid rgba(var(--bs-primary-rgb),.1); }
+    .box-tag { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem; border-radius: 8px; font-size: .78rem; font-weight: 600; }
+</style>
+
+<div class="edit-hero">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h1 class="mb-1">Edit Template</h1>
+            <p class="text-muted mb-0">Update the design settings and layout for <strong>@Model.Name</strong></p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Back to gallery</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card step-card mb-3">
+            <div class="card-body">
+                <form asp-action="Edit" asp-route-id="@Model.Id" method="post" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <input type="hidden" name="editorBoxesJson" id="EditorBoxesJson" value="" />
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label small fw-semibold">Template name</label>
+                        <input asp-for="Name" class="form-control" />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Sector" class="form-label small fw-semibold">Category</label>
+                        <select asp-for="Sector" class="form-select">
+                            @foreach (var s in SectorCatalog.All)
+                            {
+                                <option value="@s">@SectorCatalog.Label(s)</option>
+                            }
+                        </select>
+                        <div class="form-text">Templates for your sector are preferred automatically.</div>
+                    </div>
+
+                    @if (Model.IsImported)
+                    {
+                        <hr class="my-3" />
+                        <div class="small fw-semibold text-muted mb-3 text-uppercase" style="letter-spacing:.06em;">Layout settings</div>
+
+                        <div class="mb-3">
+                            <label asp-for="TextColor" class="form-label small fw-semibold">Text colour</label>
+                            <div class="input-group">
+                                <input type="color" value="@(string.IsNullOrWhiteSpace(Model.TextColor) ? "#FFFFFF" : Model.TextColor)"
+                                       oninput="document.getElementById('textHex').value = this.value;" class="form-control form-control-color" style="width:42px;height:38px;padding:3px;" />
+                                <input type="text" id="textHex" asp-for="TextColor" class="form-control"
+                                       placeholder="#RRGGBB (blank = auto)" maxlength="20" />
+                            </div>
+                            <div class="form-text">Left blank, the best readable colour is auto-chosen.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="BackgroundDim" class="form-label small fw-semibold">Background dim <span id="dimVal" class="text-muted fw-normal">@Model.BackgroundDim%</span></label>
+                            <input asp-for="BackgroundDim" type="range" min="0" max="90" step="5"
+                                   class="form-range"
+                                   oninput="document.getElementById('dimVal').textContent = this.value + '%';" />
+                            <div class="form-text">Darkens the background so text stands out.</div>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label small fw-semibold">Description</label>
+                        <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Theme" class="form-label small fw-semibold">Theme</label>
+                        <select asp-for="Theme" class="form-select">
+                            @foreach (var th in themes)
+                            {
+                                <option value="@th">@char.ToUpperInvariant(th[0])@th.Substring(1)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="AccentColor" class="form-label small fw-semibold">Accent colour</label>
+                        <div class="input-group">
+                            <input type="color" value="@(string.IsNullOrWhiteSpace(Model.AccentColor) ? "#FF6600" : Model.AccentColor)"
+                                   oninput="document.getElementById('accentHex').value = this.value;" class="form-control form-control-color" style="width:42px;height:38px;padding:3px;" />
+                            <input type="text" id="accentHex" asp-for="AccentColor" class="form-control"
+                                   placeholder="#RRGGBB (blank = theme default)" maxlength="20" />
+                        </div>
+                        <span asp-validation-for="AccentColor" class="text-danger small"></span>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label asp-for="IsActive" class="form-check-label small">Active (available when generating)</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-gradient w-100 py-2 fw-semibold">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        @if (canEditPoster)
+        {
+            <!-- AI Assistant -->
+            <div class="card ai-card mb-3">
+                <div class="card-header d-flex align-items-center gap-2 py-3">
+                    <span style="font-size:1.3rem;">&#x1F916;</span>
+                    <strong>AI Assistant</strong>
+                    <span class="badge bg-primary-subtle text-primary ms-auto">Smart edit</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-lg-7">
+                            <textarea id="aiText" class="form-control mb-3" rows="2"
+                                      placeholder='e.g. "remove all text and logos" or "make it black and white"'></textarea>
+                            <button type="button" class="btn btn-gradient px-4 fw-semibold" id="aiApply">Apply to this poster</button>
+                            <div class="form-text mt-1">Applied instantly to the template &mdash; your original upload stays safe.</div>
+                        </div>
+                        <div class="col-lg-5 text-center">
+                            <div class="canvas-frame d-inline-block">
+                                <img id="aiThumb" class="img-fluid rounded d-none" style="max-height:200px;" alt="Updated preview" />
+                            </div>
+                            <div id="aiMsg" class="alert d-none mt-2 mb-0 small py-2" role="alert"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Layout Editor -->
+            <div class="card step-card">
+                <div class="card-header d-flex justify-content-between align-items-center py-3">
+                    <strong>Poster Layout Editor</strong>
+                    <span class="badge text-bg-light" id="toolLabel">Erase Text</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-lg-4">
+                            <p class="small text-muted mb-3" id="toolHint">
+                                Click <strong>Erase Text</strong> to auto-detect old text areas &mdash; you confirm each one.
+                                Dragging marks an area manually.
+                            </p>
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="button" class="tool-btn btn btn-danger active" id="toolErase">Erase Text</button>
+                                <button type="button" class="tool-btn btn btn-outline-warning" id="toolLogos">Erase Logos</button>
+                                <button type="button" class="tool-btn btn btn-outline-success" id="toolKeep">Keep Logo</button>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnReset">Restore saved areas</button>
+                                <span class="small text-muted" id="boxCount"></span>
+                            </div>
+                            <div id="boxList" class="d-flex flex-column gap-1" style="max-height:180px; overflow-y:auto;"></div>
+                            <div class="form-text mt-2">Changes are applied when you click Save Changes above.</div>
+                        </div>
+                        <div class="col-lg-8">
+                            <div class="canvas-frame text-center">
+                                <canvas id="editCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auto-detect confirmation modal -->
+            <div class="modal fade" id="detectModal" tabindex="-1" aria-labelledby="detectTitle" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content" style="border-radius:14px; border:none;">
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title fw-bold" id="detectTitle">Confirm areas</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="small text-muted" id="detectIntro"></p>
+                            <div id="detectList" class="mb-2"></div>
+                            <div class="form-text">Tick/untick areas, then confirm below.</div>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger fw-semibold" id="detectConfirm">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Restyle with AI (non-imported templates) -->
+            <div class="card ai-card">
+                <div class="card-header d-flex align-items-center gap-2 py-3">
+                    <span style="font-size:1.3rem;">&#x1F916;</span>
+                    <strong>Restyle with AI</strong>
+                    <span class="badge bg-primary-subtle text-primary ms-auto">Smart restyle</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-lg-7">
+                            <textarea id="aiText" class="form-control mb-3" rows="2"
+                                      placeholder='e.g. "make it dark blue", "black and white", "make it light and airy"'></textarea>
+                            <button type="button" class="btn btn-gradient px-4 fw-semibold" id="aiApply">Apply restyle</button>
+                            <div class="form-text mt-1">This template draws a fresh poster every day &mdash; the assistant retunes its colours and style.</div>
+                        </div>
+                        <div class="col-lg-5 text-center">
+                            <div class="canvas-frame d-inline-block">
+                                <img id="aiThumb" class="img-fluid rounded d-none" style="max-height:200px;" alt="Updated preview" />
+                            </div>
+                            <div id="aiMsg" class="alert d-none mt-2 mb-0 small py-2" role="alert"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    @if (canEditPoster)
+    {
+        <script>
+            (function () {
+                const canvas = document.getElementById('editCanvas');
+                const ctx = canvas.getContext('2d');
+                const boxList = document.getElementById('boxList');
+                const boxCount = document.getElementById('boxCount');
+                const boxesInput = document.getElementById('EditorBoxesJson');
+                const toolErase = document.getElementById('toolErase');
+                const toolLogos = document.getElementById('toolLogos');
+                const toolKeep = document.getElementById('toolKeep');
+                const templateId = @Model.Id;
+                const antiToken = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+                const TOOLS = {
+                    'erase': {
+                        label: 'Erase Text', color: '#dc3545', cls: 'danger',
+                        hint: 'Click <strong>Erase Text</strong> to auto-detect old text areas - you confirm each one before anything is removed. Dragging marks an area manually.'
+                    },
+                    'erase-logo': {
+                        label: 'Erase Logos', color: '#fd7e14', cls: 'warning',
+                        hint: 'Click <strong>Erase Logos</strong> to auto-detect logos - you confirm each one before removal. Dragging marks an area manually.'
+                    },
+                    'keep': {
+                        label: 'Keep Logo', color: '#198754', cls: 'success',
+                        hint: 'Drag on the poster to protect a logo. Kept areas are never erased.'
+                    }
+                };
+                const TOOL_IDS = { 'erase': toolErase, 'erase-logo': toolLogos, 'keep': toolKeep };
+
+                let img = null;
+                let boxes = [];
+                let savedBoxes = [];
+                let tool = 'erase';
+                let drawing = false;
+                let start = { x: 0, y: 0 };
+                let drag = null;
+                let pending = [];
+                let modal = null;
+
+                function setTool(t) {
+                    tool = t;
+                    Object.keys(TOOL_IDS).forEach(k => {
+                        const btn = TOOL_IDS[k];
+                        btn.classList.toggle('active', k === t);
+                        if (k === t) {
+                            btn.className = 'tool-btn btn btn-' + TOOLS[k].cls;
+                        } else {
+                            btn.className = 'tool-btn btn btn-outline-' + TOOLS[k].cls;
+                        }
+                    });
+                    document.getElementById('toolHint').innerHTML = TOOLS[t].hint;
+                    document.getElementById('toolLabel').textContent = TOOLS[t].label;
+                    document.getElementById('toolLabel').className = 'badge text-bg-' + TOOLS[t].cls;
+                }
+
+                toolErase.addEventListener('click', () => { setTool('erase'); detectAndConfirm('text'); });
+                toolLogos.addEventListener('click', () => { setTool('erase-logo'); detectAndConfirm('logos'); });
+                toolKeep.addEventListener('click', () => setTool('keep'));
+
+                function pos(e) {
+                    const r = canvas.getBoundingClientRect();
+                    const x = (e.clientX - r.left) * (canvas.width / r.width);
+                    const y = (e.clientY - r.top) * (canvas.height / r.height);
+                    return {
+                        x: Math.max(0, Math.min(canvas.width, x)),
+                        y: Math.max(0, Math.min(canvas.height, y))
+                    };
+                }
+
+                function norm(p) {
+                    return { x: p.x / canvas.width, y: p.y / canvas.height };
+                }
+
+                function overlapRatio(a, b) {
+                    const x1 = Math.max(a.x, b.x);
+                    const y1 = Math.max(a.y, b.y);
+                    const x2 = Math.min(a.x + a.w, b.x + b.w);
+                    const y2 = Math.min(a.y + a.h, b.y + b.h);
+                    const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+                    return inter / Math.max(0.0001, a.w * a.h);
+                }
+
+                function render() {
+                    if (!img) return;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    const drawBox = (b, color, opts) => {
+                        opts = opts || {};
+                        const x = b.x * canvas.width;
+                        const y = b.y * canvas.height;
+                        const w = b.w * canvas.width;
+                        const h = b.h * canvas.height;
+                        ctx.save();
+                        ctx.fillStyle = color + (opts.fill || '33');
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 2;
+                        if (opts.dash) ctx.setLineDash([6, 4]);
+                        ctx.fillRect(x, y, w, h);
+                        ctx.strokeRect(x, y, w, h);
+                        if (opts.label) {
+                            ctx.setLineDash([]);
+                            ctx.font = 'bold 11px sans-serif';
+                            const tw = ctx.measureText(opts.label).width + 8;
+                            ctx.fillStyle = color;
+                            ctx.fillRect(x, Math.max(0, y - 14), tw, 14);
+                            ctx.fillStyle = '#fff';
+                            ctx.fillText(opts.label, x + 4, Math.max(10, y - 3));
+                        }
+                        ctx.restore();
+                    };
+
+                    boxes.forEach((b, i) => drawBox(b, TOOLS[b.type] ? TOOLS[b.type].color : '#dc3545',
+                        { label: (TOOLS[b.type] ? TOOLS[b.type].label : b.type) + ' ' + (i + 1) }));
+
+                    pending.forEach(b => {
+                        if (!b._skip) drawBox(b, TOOLS[b.type].color, { dash: true, fill: b._hover ? '66' : '22' });
+                    });
+
+                    if (drag) {
+                        const x = Math.min(drag.a.x, drag.b.x);
+                        const y = Math.min(drag.a.y, drag.b.y);
+                        const w = Math.abs(drag.b.x - drag.a.x);
+                        const h = Math.abs(drag.b.y - drag.a.y);
+                        drawBox({ x: x / canvas.width, y: y / canvas.height, w: w / canvas.width, h: h / canvas.height },
+                            TOOLS[tool].color, { fill: '55' });
+                    }
+                }
+
+                function sync() {
+                    boxesInput.value = JSON.stringify(boxes.map(b => ({
+                        type: b.type, x: +b.x.toFixed(3), y: +b.y.toFixed(3), w: +b.w.toFixed(3), h: +b.h.toFixed(3)
+                    })));
+                    renderBoxList();
+                    render();
+                }
+
+                function renderBoxList() {
+                    boxList.innerHTML = '';
+                    boxes.forEach((b, i) => {
+                        const div = document.createElement('div');
+                        div.className = 'd-flex align-items-center gap-2 p-2 rounded-2';
+                        div.style.background = 'rgba(0,0,0,.03)';
+
+                        const tag = document.createElement('span');
+                        tag.className = 'box-tag text-bg-' + (TOOLS[b.type] ? TOOLS[b.type].cls : 'danger');
+                        tag.textContent = (TOOLS[b.type] ? TOOLS[b.type].label : b.type);
+
+                        const info = document.createElement('span');
+                        info.className = 'small text-muted flex-grow-1';
+                        info.textContent = Math.round(b.x * 100) + '% x ' + Math.round(b.y * 100) + '%  ' + Math.round(b.w * 100) + '% x ' + Math.round(b.h * 100) + '%';
+
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn btn-sm btn-outline-danger border-0';
+                        btn.innerHTML = '&times;';
+                        btn.addEventListener('click', () => { boxes.splice(i, 1); sync(); });
+
+                        div.appendChild(tag);
+                        div.appendChild(info);
+                        div.appendChild(btn);
+                        boxList.appendChild(div);
+                    });
+                    const n = t => boxes.filter(b => b.type === t).length;
+                    boxCount.textContent = boxes.length === 0
+                        ? 'No areas marked'
+                        : boxes.length + ' area' + (boxes.length === 1 ? '' : 's') + ' (erase: ' + n('erase') + ', logo: ' + n('erase-logo') + ', keep: ' + n('keep') + ')';
+                }
+
+                canvas.addEventListener('mousedown', e => {
+                    if (!img) return;
+                    drawing = true;
+                    start = pos(e);
+                    drag = { a: start, b: start };
+                });
+                canvas.addEventListener('mousemove', e => {
+                    if (!drawing) return;
+                    drag.b = pos(e);
+                    render();
+                });
+                window.addEventListener('mouseup', () => {
+                    if (!drawing) return;
+                    drawing = false;
+                    if (drag && Math.abs(drag.b.x - drag.a.x) > 3 && Math.abs(drag.b.y - drag.a.y) > 3) {
+                        const a = norm(drag.a);
+                        const b = norm(drag.b);
+                        boxes.push({
+                            type: tool,
+                            x: Math.min(a.x, b.x),
+                            y: Math.min(a.y, b.y),
+                            w: Math.abs(b.x - a.x),
+                            h: Math.abs(b.y - a.y)
+                        });
+                    }
+                    drag = null;
+                    sync();
+                });
+
+                document.getElementById('btnReset').addEventListener('click', () => {
+                    boxes = savedBoxes.map(b => Object.assign({}, b));
+                    pending = [];
+                    boxesInput.value = '';
+                    renderBoxList();
+                    render();
+                });
+
+                // ------------------------------------------------ auto detect + confirm
+
+                function detectAndConfirm(kind) {
+                    const btn = kind === 'logos' ? toolLogos : toolErase;
+                    const old = btn.textContent;
+                    btn.disabled = true;
+                    btn.textContent = 'Detecting...';
+                    const fd = new FormData();
+                    fd.append('__RequestVerificationToken', antiToken);
+                    fetch('/Templates/AutoDetectTemplate/' + templateId, { method: 'POST', body: fd })
+                        .then(r => r.json())
+                        .then(data => {
+                            const raw = kind === 'logos' ? (data.logos || []) : (data.text || []);
+                            const type = kind === 'logos' ? 'erase-logo' : 'erase';
+                            let cands = raw
+                                .filter(b => b.w > 0 && b.h > 0)
+                                .map(b => ({ type: type, x: b.x, y: b.y, w: b.w, h: b.h }));
+                            if (type === 'erase') {
+                                cands = cands.filter(c => !boxes.some(b => b.type === 'keep' && overlapRatio(c, b) > 0.5));
+                            }
+                            if (cands.length === 0) {
+                                alert(kind === 'logos'
+                                    ? 'No logos detected automatically. Drag on the poster to mark them.'
+                                    : 'No text areas detected automatically. Drag on the poster to mark them.');
+                                return;
+                            }
+                            openConfirm(kind, cands);
+                        })
+                        .catch(() => alert('Auto-detect failed. Draw the areas manually.'))
+                        .finally(() => {
+                            btn.disabled = false;
+                            btn.textContent = old;
+                        });
+                }
+
+                function openConfirm(kind, cands) {
+                    pending = cands.map(b => Object.assign({}, b, { _skip: false, _hover: false }));
+                    const isLogos = kind === 'logos';
+                    document.getElementById('detectTitle').textContent =
+                        isLogos ? 'Confirm logos to remove' : 'Confirm text areas to erase';
+                    document.getElementById('detectIntro').textContent = isLogos
+                        ? 'We found these possible logos. Untick anything that should stay:'
+                        : 'We found these possible text areas. Untick anything that should stay:';
+                    const list = document.getElementById('detectList');
+                    list.innerHTML = '';
+                    pending.forEach((b, i) => {
+                        const div = document.createElement('div');
+                        div.className = 'form-check';
+                        const input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.className = 'form-check-input';
+                        input.checked = true;
+                        input.id = 'det' + i;
+                        input.addEventListener('change', () => { b._skip = !input.checked; render(); });
+                        const label = document.createElement('label');
+                        label.className = 'form-check-label';
+                        label.htmlFor = 'det' + i;
+                        label.textContent = areaText(b);
+                        label.addEventListener('mouseenter', () => { b._hover = true; render(); });
+                        label.addEventListener('mouseleave', () => { b._hover = false; render(); });
+                        div.appendChild(input);
+                        div.appendChild(label);
+                        list.appendChild(div);
+                    });
+                    const confirmBtn = document.getElementById('detectConfirm');
+                    confirmBtn.className = 'btn btn-' + (isLogos ? 'warning' : 'danger') + ' fw-semibold';
+                    confirmBtn.textContent = isLogos ? 'Remove selected logos' : 'Erase selected areas';
+                    render();
+                    modal.show();
+                }
+
+                function areaText(b) {
+                    return (TOOLS[b.type] ? TOOLS[b.type].label : b.type) +
+                        ' - x ' + Math.round(b.x * 100) + '% - y ' + Math.round(b.y * 100) + '%' +
+                        ' - ' + Math.round(b.w * 100) + '% x ' + Math.round(b.h * 100) + '%';
+                }
+
+                const detectModalEl = document.getElementById('detectModal');
+                modal = new bootstrap.Modal(detectModalEl);
+
+                document.getElementById('detectConfirm').addEventListener('click', () => {
+                    pending.forEach(b => {
+                        if (!b._skip) {
+                            boxes.push({ type: b.type, x: b.x, y: b.y, w: b.w, h: b.h });
+                        }
+                    });
+                    pending = [];
+                    sync();
+                    modal.hide();
+                });
+
+                detectModalEl.addEventListener('hidden.bs.modal', () => {
+                    pending = [];
+                    render();
+                });
+
+                // ------------------------------------------------ init from saved state
+
+                const initialJson = @Html.Raw(Json.Serialize((string)(ViewBag.ImportBoxesJson ?? "[]")));
+                try {
+                    const arr = JSON.parse(initialJson);
+                    if (Array.isArray(arr)) {
+                        savedBoxes = arr
+                            .filter(b => b && typeof b.x === 'number')
+                            .map(b => ({
+                                type: ['erase', 'erase-logo', 'keep'].includes(b.type) ? b.type : 'erase',
+                                x: b.x, y: b.y, w: b.w, h: b.h
+                            }));
+                        boxes = savedBoxes.map(b => Object.assign({}, b));
+                    }
+                } catch (e) { /* start clean */ }
+
+                function loadPoster(src) {
+                    const image = new Image();
+                    image.onload = () => {
+                        img = image;
+                        const maxW = 520;
+                        canvas.width = Math.min(maxW, image.naturalWidth);
+                        canvas.height = Math.round(canvas.width * image.naturalHeight / image.naturalWidth);
+                        setTool('erase');
+                        boxes = [];
+                        savedBoxes = [];
+                        sync();
+                        render();
+                    };
+                    image.src = src;
+                }
+
+                loadPoster(@Json.Serialize(posterSource));
+
+                window.__loadPoster = loadPoster;
+            })();
+        </script>
+    }
+
+    <script>
+        (function () {
+            const aiText = document.getElementById('aiText');
+            if (!aiText) return;
+            const aiApplyBtn = document.getElementById('aiApply');
+            const aiMsgEl = document.getElementById('aiMsg');
+            const aiThumbEl = document.getElementById('aiThumb');
+
+            aiApplyBtn.addEventListener('click', () => {
+                const instruction = aiText.value.trim();
+                if (!instruction) {
+                    alert('Type what you want changed, e.g. "remove all text and logos".');
+                    return;
+                }
+                aiApplyBtn.disabled = true;
+                const oldLabel = aiApplyBtn.textContent;
+                aiApplyBtn.textContent = 'Thinking...';
+                const fd = new FormData();
+                fd.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+                fd.append('id', @Model.Id);
+                fd.append('instruction', instruction);
+
+                fetch('/Templates/AiUpdateTemplate', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        aiMsgEl.classList.remove('d-none', 'alert-success', 'alert-warning');
+                        if (!data.ok) {
+                            aiMsgEl.classList.add('alert-warning');
+                            aiMsgEl.textContent = data.message || 'Could not apply that.';
+                            return;
+                        }
+                        aiMsgEl.classList.add('alert-success');
+                        aiMsgEl.textContent = data.message + ' Changes are saved.';
+                        if (data.image && aiThumbEl) {
+                            aiThumbEl.src = data.image;
+                            aiThumbEl.classList.remove('d-none');
+                        } else if (data.thumbUrl && aiThumbEl) {
+                            aiThumbEl.src = data.thumbUrl;
+                            aiThumbEl.classList.remove('d-none');
+                        }
+                        if (data.backgroundUrl && typeof window.__loadPoster === 'function') {
+                            window.__loadPoster(data.backgroundUrl);
+                        }
+                    })
+                    .catch(() => {
+                        aiMsgEl.classList.remove('d-none', 'alert-success');
+                        aiMsgEl.classList.add('alert-warning');
+                        aiMsgEl.textContent = 'Something went wrong applying that instruction.';
+                    })
+                    .finally(() => {
+                        aiApplyBtn.disabled = false;
+                        aiApplyBtn.textContent = oldLabel;
+                    });
+            });
+        })();
+    </script>
+}

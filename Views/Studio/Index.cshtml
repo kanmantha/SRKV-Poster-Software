@@ -1,0 +1,243 @@
+@{
+    ViewData["Title"] = "Poster Studio";
+}
+
+<style>
+    .studio-wrap { max-width: 880px; margin: 0 auto; }
+    .studio-hero { text-align: center; padding: 3rem 0 1.5rem; }
+    .studio-hero h1 { font-weight: 800; letter-spacing: -0.02em; }
+    .studio-prompt {
+        border-radius: 28px; box-shadow: 0 6px 32px rgba(0,0,0,.12);
+        padding: .75rem .75rem .75rem 1.4rem; background: var(--bs-body-bg);
+    }
+    .studio-prompt textarea {
+        border: none; resize: none; font-size: 1.05rem; padding: .9rem 0;
+        max-height: 140px; background: transparent;
+    }
+    .studio-prompt textarea:focus { outline: none; box-shadow: none; }
+    .btn-send {
+        width: 46px; height: 46px; border-radius: 50%; border: none;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .chip {
+        border-radius: 999px; padding: .45rem 1rem; font-size: .875rem;
+        cursor: pointer; user-select: none;
+    }
+    .studio-date {
+        border-right: 1px solid rgba(0,0,0,.08);
+        padding-right: .9rem;
+        min-width: 130px;
+    }
+    #studioResult { display: none; }
+    .studio-preview img { max-height: 560px; }
+    .swatch {
+        width: 22px; height: 22px; border-radius: 6px; display: inline-block;
+        vertical-align: middle; border: 2px solid rgba(255,255,255,.6);
+        box-shadow: 0 0 0 1px rgba(0,0,0,.15);
+    }
+    .studio-thinking { letter-spacing: .04em; }
+    .dot { animation: blink 1.4s infinite both; }
+    .dot:nth-child(2) { animation-delay: .2s; }
+    .dot:nth-child(3) { animation-delay: .4s; }
+    @@keyframes blink { 0%,80%,100% { opacity: .25 } 40% { opacity: 1 } }
+</style>
+
+<div class="studio-wrap">
+    <div class="studio-hero" id="studioHero">
+        <h1>What are we celebrating today?</h1>
+        <p class="text-muted mb-0">Describe the occasion — the Studio designs a poster for your business and picks matching colours.</p>
+    </div>
+
+    <form id="studioForm" class="card studio-prompt mb-3">
+        @Html.AntiForgeryToken()
+        <div class="d-flex align-items-end gap-2 flex-wrap">
+            <div class="studio-date">
+                <label for="studioDate" class="form-label small text-muted mb-0">Poster date</label>
+                <input type="date" id="studioDate" class="form-control form-control-sm border-0 px-1 bg-transparent" />
+            </div>
+            <textarea id="studioPrompt" class="form-control" rows="1" maxlength="200"
+                      placeholder="e.g. Women's Day special at my school"></textarea>
+            <button type="submit" id="studioGo" class="btn-send btn-gradient text-white" title="Design poster" aria-label="Design poster">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+        </div>
+    </form>
+
+    <div class="d-flex flex-wrap gap-2 justify-content-center mb-4" id="studioChips"></div>
+
+    <div id="studioThinking" class="text-center py-5" style="display:none;">
+        <span class="studio-thinking text-muted">Designing your poster<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>
+    </div>
+
+    <div id="studioResult" class="card mt-2">
+        <div class="card-body">
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-7 studio-preview text-center">
+                    <img id="studioImg" alt="Generated poster preview" class="img-fluid border rounded shadow-sm" />
+                </div>
+                <div class="col-lg-5">
+                    <h4 class="mb-1" id="studioTitle"></h4>
+                    <div class="text-muted small mb-3" id="studioPromptEcho"></div>
+                    <div class="alert alert-light border small py-2 px-3" id="dateNote" style="display:none;"></div>
+                    <div class="alert alert-light border small py-2 px-3" id="studioEvents" style="display:none;"></div>
+                    <dl class="row mb-3">
+                        <dt class="col-5 small fw-normal text-muted">Template</dt>
+                        <dd class="col-7 small fw-semibold" id="studioTemplateName"></dd>
+                        <dt class="col-5 small fw-normal text-muted">Department</dt>
+                        <dd class="col-7 small fw-semibold" id="studioSector"></dd>
+                        <dt class="col-5 small fw-normal text-muted">Style</dt>
+                        <dd class="col-7 small fw-semibold">
+                            <span class="swatch me-1" id="studioSwatch"></span>
+                            <span id="studioTheme"></span> · v<span id="studioRound"></span>
+                        </dd>
+                    </dl>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" id="studioRegen" class="btn btn-outline-primary">
+                            ↻ Regenerate
+                        </button>
+                        <form id="studioSaveForm" method="post" asp-controller="Studio" asp-action="Save">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="prompt" id="savePrompt" />
+                            <input type="hidden" name="templateId" id="saveTemplateId" />
+                            <input type="hidden" name="date" id="saveDate" />
+                            <input type="hidden" name="dateExplicit" id="saveDateExplicit" value="false" />
+                            <button type="submit" class="btn btn-gradient">Save to Gallery ✓</button>
+                        </form>
+                    </div>
+                    <div class="small text-muted mt-3">
+                        Not happy yet? Regenerate creates a brand-new template with different colours every click.
+                    </div>
+                    <a class="small mt-2 d-inline-block" asp-controller="Home" asp-action="Events">Advanced mode → classic generator</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (() => {
+        const form = document.getElementById('studioForm');
+        const input = document.getElementById('studioPrompt');
+        const goBtn = document.getElementById('studioGo');
+        const thinking = document.getElementById('studioThinking');
+        const result = document.getElementById('studioResult');
+        const hero = document.getElementById('studioHero');
+        const chips = document.getElementById('studioChips');
+        const token = document.querySelector('#studioForm input[name="__RequestVerificationToken"]').value;
+        const dateInput = document.getElementById('studioDate');
+        const initialDate = '@(ViewBag.InitialDate as string ?? string.Empty)';
+        dateInput.value = initialDate || new Date().toLocaleDateString('en-CA');
+        let dateTouched = initialDate !== '';
+        dateInput.addEventListener('change', () => { dateTouched = true; loadOccasions(dateInput.value); });
+
+        let round = 0;
+        let busy = false;
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+        });
+        form.addEventListener('submit', e => { e.preventDefault(); submit(); });
+        document.getElementById('studioRegen').addEventListener('click', () => {
+            if (!busy && input.value.trim()) { round++; create(); }
+        });
+        function renderChips(list) {
+            chips.innerHTML = '';
+            list.forEach(text => {
+                const span = document.createElement('span');
+                span.className = 'chip badge text-bg-light';
+                span.textContent = text;
+                span.addEventListener('click', () => { input.value = text; submit(); });
+                chips.appendChild(span);
+            });
+        }
+
+        async function loadOccasions(date) {
+            if (!date) return;
+            try {
+                const resp = await fetch('@Url.Action("Occasions", "Studio")?date=' + encodeURIComponent(date));
+                if (!resp.ok) return;
+                const list = await resp.json();
+                if (Array.isArray(list) && list.length) renderChips(list);
+            } catch (_) { /* keep current chips on failure */ }
+        }
+
+        loadOccasions(dateInput.value);
+
+        function submit() {
+            round = 1;
+            create();
+        }
+
+        async function create() {
+            const prompt = input.value.trim();
+            if (!prompt || busy) return;
+            busy = true;
+            goBtn.disabled = true;
+            result.style.display = 'none';
+            thinking.style.display = 'block';
+            hero.style.display = 'none';
+            chips.style.display = 'none';
+
+            try {
+                const body = new URLSearchParams({
+                    prompt, round: String(round), date: dateInput.value,
+                    dateExplicit: String(dateTouched)
+                });
+                body.append('__RequestVerificationToken', token);
+                const resp = await fetch('@Url.Action("Create", "Studio")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) throw new Error(data.error || 'Failed');
+
+                if (data.dateAutoSet && data.eventDate) {
+                    dateInput.value = data.eventDate;
+                    dateTouched = true;
+                    document.getElementById('dateNote').textContent =
+                        '📅 Date set to ' + new Date(data.eventDate + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ' — matches the occasion.';
+                    document.getElementById('dateNote').style.display = 'block';
+                } else {
+                    document.getElementById('dateNote').style.display = 'none';
+                }
+
+                document.getElementById('studioTitle').textContent = data.title;
+                document.getElementById('studioPromptEcho').textContent = '"' + prompt + '"';
+                document.getElementById('studioTemplateName').textContent = data.templateName;
+                document.getElementById('studioSector').textContent = data.sectorLabel;
+                document.getElementById('studioTheme').textContent = data.theme;
+                document.getElementById('studioRound').textContent = data.round;
+                document.getElementById('studioSwatch').style.background = data.accent || 'transparent';
+                document.getElementById('studioImg').src = data.previewUrl + '?t=' + Date.now();
+                document.getElementById('savePrompt').value = prompt;
+                document.getElementById('saveTemplateId').value = data.templateId;
+                document.getElementById('saveDate').value = data.eventDate || dateInput.value;
+                document.getElementById('saveDateExplicit').value = String(dateTouched);
+
+                const eventsBox = document.getElementById('studioEvents');
+                if (data.eventCount > 0) {
+                    const list = (data.featured || []).map(t => '• ' + t).join('<br>');
+                    eventsBox.innerHTML = '<strong>' + data.eventCount + '</strong> event(s) on ' +
+                        data.eventDate + ':<br>' + list;
+                    eventsBox.style.display = 'block';
+                } else {
+                    eventsBox.style.display = 'none';
+                }
+
+                thinking.style.display = 'none';
+                result.style.display = 'block';
+                result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (err) {
+                thinking.style.display = 'none';
+                hero.style.display = 'block';
+                chips.style.display = 'flex';
+                alert(err.message || 'Could not create the poster.');
+            } finally {
+                busy = false;
+                goBtn.disabled = false;
+            }
+        }
+    })();
+</script>
+}

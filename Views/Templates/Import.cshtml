@@ -1,0 +1,781 @@
+@model TemplateImportViewModel
+@{
+    ViewData["Title"] = "Create or Update a Poster";
+}
+
+<style>
+    .import-hero { background: linear-gradient(135deg, var(--bs-primary-bg-subtle) 0%, var(--bs-body-bg) 100%); border-radius: 16px; padding: 2rem 2.5rem; margin-bottom: 1.5rem; }
+    .import-hero h1 { font-weight: 800; letter-spacing: -0.03em; }
+    .import-hero p { max-width: 560px; }
+    .step-card { border: 1px solid rgba(0,0,0,.06); border-radius: 14px; transition: box-shadow .2s; }
+    .step-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+    .step-num { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+    .tool-btn { border-radius: 10px; padding: .5rem 1rem; font-weight: 600; font-size: .82rem; border-width: 2px; transition: all .15s; }
+    .tool-btn.active { box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb),.25); }
+    .tool-btn:hover { transform: translateY(-1px); }
+    .canvas-frame { background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 16px 16px; border-radius: 12px; padding: 8px; border: 1px solid rgba(0,0,0,.08); }
+    #editCanvas { border-radius: 8px; cursor: crosshair; display: block; width: 100%; }
+    .ai-card { border: 2px solid rgba(var(--bs-primary-rgb),.18); border-radius: 14px; background: linear-gradient(180deg, rgba(var(--bs-primary-rgb),.03) 0%, transparent 100%); }
+    .ai-card .card-header { background: transparent; border-bottom: 1px solid rgba(var(--bs-primary-rgb),.1); }
+    .chip-btn { border-radius: 999px; font-size: .78rem; padding: .3rem .7rem; border: 1px solid rgba(0,0,0,.12); background: var(--bs-body-bg); transition: all .15s; }
+    .chip-btn:hover { background: var(--bs-primary); color: #fff; border-color: var(--bs-primary); }
+    .treat-option { border: 2px solid rgba(0,0,0,.08); border-radius: 10px; padding: .65rem .85rem; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: .6rem; }
+    .treat-option:hover { border-color: var(--bs-primary); background: rgba(var(--bs-primary-rgb),.04); }
+    .treat-option.selected { border-color: var(--bs-primary); background: rgba(var(--bs-primary-rgb),.08); box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb),.12); }
+    .treat-option input[type="radio"] { accent-color: var(--bs-primary); width: 18px; height: 18px; }
+    .box-tag { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem; border-radius: 8px; font-size: .78rem; font-weight: 600; }
+    .empty-canvas { border: 2px dashed rgba(0,0,0,.12); border-radius: 12px; padding: 4rem 2rem; text-align: center; }
+    .empty-canvas .icon { font-size: 3rem; opacity: .3; }
+</style>
+
+<div class="import-hero">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h1 class="mb-1">Poster Workshop</h1>
+            <p class="text-muted mb-0">
+                Upload an existing design — the assistant strips old text, cleans up logos,
+                and refreshes colours so you get a polished, reusable template.
+            </p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Back to gallery</a>
+    </div>
+</div>
+
+<ul class="nav nav-pills gap-2 mb-4" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active px-4 py-2" id="tab-update-btn" data-bs-toggle="tab" data-bs-target="#tab-update"
+                type="button" role="tab" aria-selected="true">
+            Update an old poster
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link px-4 py-2" id="tab-new-btn" data-bs-toggle="tab" data-bs-target="#tab-new"
+                type="button" role="tab" aria-selected="false">
+            Create a new poster
+        </button>
+    </li>
+</ul>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+}
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-update" role="tabpanel">
+        <form asp-action="Import" method="post" enctype="multipart/form-data" id="importForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="BoxesJson" />
+
+            <div class="row g-4">
+                <div class="col-lg-5">
+                    <!-- Step 1: Details & Upload -->
+                    <div class="card step-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <span class="step-num bg-primary text-white">1</span>
+                                <strong>Upload your poster</strong>
+                            </div>
+                            <div class="mb-3">
+                                <label asp-for="Name" class="form-label small fw-semibold">Template name</label>
+                                <input asp-for="Name" class="form-control" placeholder="e.g. Weekend Menu Board" />
+                                <span asp-validation-for="Name" class="text-danger small"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label asp-for="Sector" class="form-label small fw-semibold">Category</label>
+                                <select asp-for="Sector" class="form-select">
+                                    @foreach (var s in Model.SectorOptions)
+                                    {
+                                        <option value="@s.Value">@s.Label</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label asp-for="Upload" class="form-label small fw-semibold">Poster image</label>
+                                <input asp-for="Upload" type="file" id="fileInput" accept=".png,.jpg,.jpeg,.webp"
+                                       class="form-control" style="border-style:dashed;" />
+                                <div class="form-text">PNG, JPG or WEBP &middot; up to 10 MB &middot; portrait works best</div>
+                                <span asp-validation-for="Upload" class="text-danger small"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Assistant -->
+                    <div class="card ai-card mb-3">
+                        <div class="card-header d-flex align-items-center gap-2 py-3">
+                            <span style="font-size:1.3rem;">&#x1F916;</span>
+                            <strong>AI Assistant</strong>
+                            <span class="badge bg-primary-subtle text-primary ms-auto">Smart edit</span>
+                        </div>
+                        <div class="card-body">
+                            <textarea id="aiText" class="form-control mb-3" rows="3"
+                                      placeholder='Tell it what to change… e.g. "remove all text and make it blue"'></textarea>
+                            <div class="d-flex flex-wrap gap-1 mb-3" id="aiChips">
+                                <button type="button" class="chip-btn">remove all text</button>
+                                <button type="button" class="chip-btn">remove text and logos</button>
+                                <button type="button" class="chip-btn">make it black and white</button>
+                                <button type="button" class="chip-btn">make it green</button>
+                                <button type="button" class="chip-btn">new background</button>
+                                <button type="button" class="chip-btn">enhance the colours</button>
+                            </div>
+                            <button type="button" class="btn btn-gradient w-100 py-2 fw-semibold" id="aiApply">
+                                Apply instruction
+                            </button>
+                            <div id="aiMsg" class="alert d-none mt-3 mb-0 small py-2" role="alert"></div>
+                            <div id="aiResultWrap" class="d-none mt-3 text-center">
+                                <div class="canvas-frame d-inline-block">
+                                    <img id="aiThumb" class="img-fluid rounded" style="max-height:260px;" alt="Updated preview" />
+                                </div>
+                                <div class="form-text mt-1">Preview &mdash; erasures are highlighted on the editor canvas</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Layout Editor -->
+                    <div class="card step-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <span class="step-num bg-warning text-dark">2</span>
+                                <strong>Mark regions</strong>
+                                <span class="small text-muted ms-2">optional</span>
+                            </div>
+                            <p class="small text-muted mb-3" id="toolHint">
+                                The AI usually handles erasing. For manual control, click a tool below
+                                or drag directly on the poster.
+                            </p>
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="button" class="tool-btn btn btn-danger active" id="toolErase">Erase Text</button>
+                                <button type="button" class="tool-btn btn btn-outline-warning" id="toolLogos">Erase Logos</button>
+                                <button type="button" class="tool-btn btn btn-outline-success" id="toolKeep">Keep Logo</button>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClear">Clear all</button>
+                                <span class="small text-muted" id="boxCount">No areas marked</span>
+                            </div>
+                            <div id="boxList" class="d-flex flex-column gap-1" style="max-height:140px; overflow-y:auto;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Colour Treatment -->
+                    <div class="card step-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <span class="step-num bg-info text-white">3</span>
+                                <strong>Colour treatment</strong>
+                            </div>
+                            <div class="d-flex flex-column gap-2">
+                                <label class="treat-option selected">
+                                    <input type="radio" name="TreatmentKind" value="original" checked class="treat-radio" />
+                                    <div>
+                                        <div class="fw-semibold small">Keep original</div>
+                                        <div class="text-muted" style="font-size:.75rem;">No colour changes</div>
+                                    </div>
+                                </label>
+                                <label class="treat-option">
+                                    <input type="radio" name="TreatmentKind" value="tint" class="treat-radio" />
+                                    <div>
+                                        <div class="fw-semibold small">Colour tint wash</div>
+                                        <div class="text-muted" style="font-size:.75rem;">Overlay a brand colour</div>
+                                    </div>
+                                </label>
+                                <div class="ms-4 mb-2 d-none" id="tintControls">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="color" class="form-control form-control-sm" id="tintHex" name="TintHex" value="#1e88e5" title="Tint colour" style="width:36px;height:36px;padding:2px;" />
+                                        <input type="range" class="form-range" id="tintStrengthRange" min="10" max="85" value="45" style="max-width:160px;" />
+                                        <span class="small text-muted" id="tintStrengthLabel">45%</span>
+                                    </div>
+                                    <input type="hidden" id="TintStrength" name="TintStrength" value="0.45" />
+                                </div>
+                                <label class="treat-option">
+                                    <input type="radio" name="TreatmentKind" value="enhance" class="treat-radio" />
+                                    <div>
+                                        <div class="fw-semibold small">Enhance colours</div>
+                                        <div class="text-muted" style="font-size:.75rem;">Fix faded prints</div>
+                                    </div>
+                                </label>
+                                <label class="treat-option">
+                                    <input type="radio" name="TreatmentKind" value="grayscale" class="treat-radio" />
+                                    <div>
+                                        <div class="fw-semibold small">Black &amp; white</div>
+                                        <div class="text-muted" style="font-size:.75rem;">Desaturate all colours</div>
+                                    </div>
+                                </label>
+                                <label class="treat-option">
+                                    <input type="radio" name="TreatmentKind" value="fresh" class="treat-radio" />
+                                    <div>
+                                        <div class="fw-semibold small">Fresh new background</div>
+                                        <div class="text-muted" style="font-size:.75rem;">Replace with a gradient</div>
+                                    </div>
+                                </label>
+                                <div class="ms-4 mt-1 d-none" id="freshControls">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <select class="form-select form-select-sm w-auto" id="freshTheme" name="FreshTheme">
+                                            <option value="colorful">Colourful gradient</option>
+                                            <option value="light">Light &amp; clean</option>
+                                            <option value="dark">Dark premium</option>
+                                        </select>
+                                        <input type="color" class="form-control form-control-sm" id="freshAccent" name="FreshAccent" value="#ffd54f" title="Accent glow" style="width:36px;height:36px;padding:2px;" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="btnTreatPreview">Preview colours</button>
+                                <span class="small text-muted d-none" id="treatNote">Final import applies erasures + colour at full quality.</span>
+                            </div>
+                            <div class="mt-3 d-none" id="treatThumbWrap">
+                                <div class="canvas-frame d-inline-block">
+                                    <img id="treatThumb" class="img-fluid rounded" style="max-height:220px;" alt="Colour preview" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 my-4">
+                        <button type="submit" class="btn btn-gradient btn-lg px-4 fw-semibold">Create Template</button>
+                        <a asp-action="Index" class="btn btn-outline-secondary btn-lg">Cancel</a>
+                    </div>
+                </div>
+
+                <div class="col-lg-7">
+                    <div class="card step-card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center py-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <strong>Canvas</strong>
+                                <span class="badge text-bg-light" id="toolLabel">Erase Text</span>
+                            </div>
+                            <span class="small text-muted" id="canvasHint">Draw regions to mark areas</span>
+                        </div>
+                        <div class="card-body d-flex align-items-center justify-content-center" style="min-height:480px;">
+                            <div id="canvasWrap" class="d-none w-100 text-center">
+                                <div class="canvas-frame d-inline-block" style="max-width:440px;">
+                                    <canvas id="editCanvas"></canvas>
+                                </div>
+                            </div>
+                            <div id="emptyHint" class="empty-canvas w-100">
+                                <div class="icon mb-2">&#x1F5BC;</div>
+                                <h5 class="text-muted">No poster uploaded</h5>
+                                <p class="text-muted small mb-0">Choose a poster image on the left to start editing</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="tab-pane fade" id="tab-new" role="tabpanel">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card step-card text-center shadow-sm">
+                    <div class="card-body p-5">
+                        <div style="font-size:3rem;" class="mb-2">&#x2728;</div>
+                        <h3 class="mb-2 fw-bold">Generate a fresh poster with AI</h3>
+                        <p class="text-muted mb-4" style="max-width:440px; margin:0 auto;">
+                            Describe the occasion in the Poster Studio — a festival, a sale, an event —
+                            pick a date and get ready-to-share designs instantly.
+                        </p>
+                        <a href="/Studio" class="btn btn-gradient btn-lg px-5 fw-semibold">Open Poster Studio</a>
+                        <hr class="my-4" />
+                        <div class="d-flex flex-wrap justify-content-center gap-2">
+                            <a class="btn btn-sm chip-btn" href="/Studio?prompt=Diwali%20greetings%20for%20my%20customers">Diwali</a>
+                            <a class="btn btn-sm chip-btn" href="/Studio?prompt=Independence%20Day%20celebration">Independence Day</a>
+                            <a class="btn btn-sm chip-btn" href="/Studio?prompt=Mega%20sale%20announcement">Mega Sale</a>
+                            <a class="btn btn-sm chip-btn" href="/Studio?prompt=School%20annual%20day%20function">School Event</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto-detect confirmation modal -->
+<div class="modal fade" id="detectModal" tabindex="-1" aria-labelledby="detectTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:14px; border:none;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="detectTitle">Confirm areas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted" id="detectIntro"></p>
+                <div id="detectList" class="mb-2"></div>
+                <div class="form-text">Tick/untick areas, then confirm below.</div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger fw-semibold" id="detectConfirm">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const canvas = document.getElementById('editCanvas');
+            const ctx = canvas.getContext('2d');
+            const fileInput = document.getElementById('fileInput');
+            const canvasWrap = document.getElementById('canvasWrap');
+            const emptyHint = document.getElementById('emptyHint');
+            const boxList = document.getElementById('boxList');
+            const boxCount = document.getElementById('boxCount');
+            const boxesInput = document.getElementById('BoxesJson');
+            const toolErase = document.getElementById('toolErase');
+            const toolLogos = document.getElementById('toolLogos');
+            const toolKeep = document.getElementById('toolKeep');
+            const toolLabel = document.getElementById('toolLabel');
+
+            const TOOLS = {
+                'erase': { label: 'Erase Text', color: '#dc3545', cls: 'danger' },
+                'erase-logo': { label: 'Erase Logos', color: '#fd7e14', cls: 'warning' },
+                'keep': { label: 'Keep Logo', color: '#198754', cls: 'success' }
+            };
+            const TOOL_IDS = { 'erase': toolErase, 'erase-logo': toolLogos, 'keep': toolKeep };
+
+            let img = null;
+            let boxes = [];
+            let tool = 'erase';
+            let drawing = false;
+            let start = { x: 0, y: 0 };
+            let drag = null;
+            let pending = [];
+            let modal = null;
+
+            function setTool(t) {
+                tool = t;
+                Object.keys(TOOL_IDS).forEach(k => {
+                    const btn = TOOL_IDS[k];
+                    btn.classList.toggle('active', k === t);
+                    if (k === t) {
+                        btn.className = 'tool-btn btn btn-' + TOOLS[k].cls;
+                    } else {
+                        btn.className = 'tool-btn btn btn-outline-' + TOOLS[k].cls;
+                    }
+                });
+                toolLabel.textContent = TOOLS[t].label;
+                toolLabel.className = 'badge text-bg-' + TOOLS[t].cls;
+            }
+
+            toolErase.addEventListener('click', () => { setTool('erase'); detectAndConfirm('text'); });
+            toolLogos.addEventListener('click', () => { setTool('erase-logo'); detectAndConfirm('logos'); });
+            toolKeep.addEventListener('click', () => setTool('keep'));
+
+            function pos(e) {
+                const r = canvas.getBoundingClientRect();
+                const x = (e.clientX - r.left) * (canvas.width / r.width);
+                const y = (e.clientY - r.top) * (canvas.height / r.height);
+                return {
+                    x: Math.max(0, Math.min(canvas.width, x)),
+                    y: Math.max(0, Math.min(canvas.height, y))
+                };
+            }
+
+            function norm(p) {
+                return { x: p.x / canvas.width, y: p.y / canvas.height };
+            }
+
+            function overlapRatio(a, b) {
+                const x1 = Math.max(a.x, b.x);
+                const y1 = Math.max(a.y, b.y);
+                const x2 = Math.min(a.x + a.w, b.x + b.w);
+                const y2 = Math.min(a.y + a.h, b.y + b.h);
+                const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+                return inter / Math.max(0.0001, a.w * a.h);
+            }
+
+            function render() {
+                if (!img) return;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                const drawBox = (b, color, opts) => {
+                    opts = opts || {};
+                    const x = b.x * canvas.width;
+                    const y = b.y * canvas.height;
+                    const w = b.w * canvas.width;
+                    const h = b.h * canvas.height;
+                    ctx.save();
+                    ctx.fillStyle = color + (opts.fill || '33');
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    if (opts.dash) ctx.setLineDash([6, 4]);
+                    ctx.fillRect(x, y, w, h);
+                    ctx.strokeRect(x, y, w, h);
+                    if (opts.label) {
+                        ctx.setLineDash([]);
+                        ctx.font = 'bold 11px sans-serif';
+                        const tw = ctx.measureText(opts.label).width + 8;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x, Math.max(0, y - 14), tw, 14);
+                        ctx.fillStyle = '#fff';
+                        ctx.fillText(opts.label, x + 4, Math.max(10, y - 3));
+                    }
+                    ctx.restore();
+                };
+
+                boxes.forEach((b, i) => drawBox(b, TOOLS[b.type] ? TOOLS[b.type].color : '#dc3545',
+                    { label: (TOOLS[b.type] ? TOOLS[b.type].label : b.type) + ' ' + (i + 1) }));
+
+                pending.forEach(b => {
+                    if (!b._skip) drawBox(b, TOOLS[b.type].color, { dash: true, fill: b._hover ? '66' : '22' });
+                });
+
+                if (drag) {
+                    const x = Math.min(drag.a.x, drag.b.x);
+                    const y = Math.min(drag.a.y, drag.b.y);
+                    const w = Math.abs(drag.b.x - drag.a.x);
+                    const h = Math.abs(drag.b.y - drag.a.y);
+                    drawBox({ x: x / canvas.width, y: y / canvas.height, w: w / canvas.width, h: h / canvas.height },
+                        TOOLS[tool].color, { fill: '55' });
+                }
+            }
+
+            function sync() {
+                boxesInput.value = JSON.stringify(boxes.map(b => ({
+                    type: b.type, x: +b.x.toFixed(3), y: +b.y.toFixed(3), w: +b.w.toFixed(3), h: +b.h.toFixed(3)
+                })));
+                renderBoxList();
+                render();
+            }
+
+            function renderBoxList() {
+                boxList.innerHTML = '';
+                boxes.forEach((b, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'd-flex align-items-center gap-2 p-2 rounded-2';
+                    div.style.background = 'rgba(0,0,0,.03)';
+
+                    const tag = document.createElement('span');
+                    tag.className = 'box-tag text-bg-' + (TOOLS[b.type] ? TOOLS[b.type].cls : 'danger');
+                    tag.textContent = (TOOLS[b.type] ? TOOLS[b.type].label : b.type);
+
+                    const info = document.createElement('span');
+                    info.className = 'small text-muted flex-grow-1';
+                    info.textContent = Math.round(b.x * 100) + '% x ' + Math.round(b.y * 100) + '%  ' + Math.round(b.w * 100) + '% x ' + Math.round(b.h * 100) + '%';
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-sm btn-outline-danger border-0';
+                    btn.innerHTML = '&times;';
+                    btn.addEventListener('click', () => { boxes.splice(i, 1); sync(); });
+
+                    div.appendChild(tag);
+                    div.appendChild(info);
+                    div.appendChild(btn);
+                    boxList.appendChild(div);
+                });
+                const n = t => boxes.filter(b => b.type === t).length;
+                boxCount.textContent = boxes.length === 0
+                    ? 'No areas marked'
+                    : boxes.length + ' area' + (boxes.length === 1 ? '' : 's') + ' (erase: ' + n('erase') + ', logo: ' + n('erase-logo') + ', keep: ' + n('keep') + ')';
+            }
+
+            canvas.addEventListener('mousedown', e => {
+                if (!img) return;
+                drawing = true;
+                start = pos(e);
+                drag = { a: start, b: start };
+            });
+            canvas.addEventListener('mousemove', e => {
+                if (!drawing) return;
+                drag.b = pos(e);
+                render();
+            });
+            window.addEventListener('mouseup', () => {
+                if (!drawing) return;
+                drawing = false;
+                if (drag && Math.abs(drag.b.x - drag.a.x) > 3 && Math.abs(drag.b.y - drag.a.y) > 3) {
+                    const a = norm(drag.a);
+                    const b = norm(drag.b);
+                    boxes.push({
+                        type: tool,
+                        x: Math.min(a.x, b.x),
+                        y: Math.min(a.y, b.y),
+                        w: Math.abs(b.x - a.x),
+                        h: Math.abs(b.y - a.y)
+                    });
+                }
+                drag = null;
+                sync();
+            });
+
+            function loadImage() {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const image = new Image();
+                    image.onload = () => {
+                        img = image;
+                        const maxW = 440;
+                        canvas.width = Math.min(maxW, image.naturalWidth);
+                        canvas.height = Math.round(canvas.width * image.naturalHeight / image.naturalWidth);
+                        canvasWrap.classList.remove('d-none');
+                        emptyHint.style.display = 'none';
+                        sync();
+                    };
+                    image.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            fileInput.addEventListener('change', loadImage);
+
+            document.getElementById('btnClear').addEventListener('click', () => {
+                boxes = [];
+                pending = [];
+                sync();
+            });
+
+            // ------------------------------------------------ auto detect + confirm
+
+            function detectAndConfirm(kind) {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) {
+                    alert('Choose a poster image first.');
+                    return;
+                }
+                const btn = kind === 'logos' ? toolLogos : toolErase;
+                const old = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = 'Detecting...';
+                const fd = new FormData();
+                fd.append('upload', file);
+                fetch('/Templates/AutoDetect', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        const raw = kind === 'logos' ? (data.logos || []) : (data.text || []);
+                        const type = kind === 'logos' ? 'erase-logo' : 'erase';
+                        let cands = raw
+                            .filter(b => b.w > 0 && b.h > 0)
+                            .map(b => ({ type: type, x: b.x, y: b.y, w: b.w, h: b.h }));
+                        if (type === 'erase') {
+                            cands = cands.filter(c => !boxes.some(b => b.type === 'keep' && overlapRatio(c, b) > 0.5));
+                        }
+                        if (cands.length === 0) {
+                            alert(kind === 'logos'
+                                ? 'No logos detected automatically. Drag on the poster to mark them.'
+                                : 'No text areas detected automatically. Drag on the poster to mark them.');
+                            return;
+                        }
+                        openConfirm(kind, cands);
+                    })
+                    .catch(() => alert('Auto-detect failed. Draw the areas manually.'))
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.textContent = old;
+                    });
+            }
+
+            function openConfirm(kind, cands) {
+                pending = cands.map(b => Object.assign({}, b, { _skip: false, _hover: false }));
+                const isLogos = kind === 'logos';
+                document.getElementById('detectTitle').textContent =
+                    isLogos ? 'Confirm logos to remove' : 'Confirm text areas to erase';
+                document.getElementById('detectIntro').textContent = isLogos
+                    ? 'We found these possible logos. Untick anything that should stay:'
+                    : 'We found these possible text areas. Untick anything that should stay:';
+                const list = document.getElementById('detectList');
+                list.innerHTML = '';
+                pending.forEach((b, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'form-check';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'form-check-input';
+                    input.checked = true;
+                    input.id = 'det' + i;
+                    input.addEventListener('change', () => { b._skip = !input.checked; render(); });
+                    const label = document.createElement('label');
+                    label.className = 'form-check-label';
+                    label.htmlFor = 'det' + i;
+                    label.textContent = areaText(b);
+                    label.addEventListener('mouseenter', () => { b._hover = true; render(); });
+                    label.addEventListener('mouseleave', () => { b._hover = false; render(); });
+                    div.appendChild(input);
+                    div.appendChild(label);
+                    list.appendChild(div);
+                });
+                const confirmBtn = document.getElementById('detectConfirm');
+                confirmBtn.className = 'btn btn-' + (isLogos ? 'warning' : 'danger') + ' fw-semibold';
+                confirmBtn.textContent = isLogos ? 'Remove selected logos' : 'Erase selected areas';
+                render();
+                modal.show();
+            }
+
+            function areaText(b) {
+                return (TOOLS[b.type] ? TOOLS[b.type].label : b.type) +
+                    ' - x ' + Math.round(b.x * 100) + '% - y ' + Math.round(b.y * 100) + '%' +
+                    ' - ' + Math.round(b.w * 100) + '% x ' + Math.round(b.h * 100) + '%';
+            }
+
+            const detectModalEl = document.getElementById('detectModal');
+            modal = new bootstrap.Modal(detectModalEl);
+
+            document.getElementById('detectConfirm').addEventListener('click', () => {
+                pending.forEach(b => {
+                    if (!b._skip) {
+                        boxes.push({ type: b.type, x: b.x, y: b.y, w: b.w, h: b.h });
+                    }
+                });
+                pending = [];
+                sync();
+                modal.hide();
+            });
+
+            detectModalEl.addEventListener('hidden.bs.modal', () => {
+                pending = [];
+                render();
+            });
+
+            // ------------------------------------------------ AI assistant
+
+            const aiText = document.getElementById('aiText');
+            const aiApply = document.getElementById('aiApply');
+            const aiMsg = document.getElementById('aiMsg');
+            const aiThumb = document.getElementById('aiThumb');
+            const aiResultWrap = document.getElementById('aiResultWrap');
+
+            document.querySelectorAll('#aiChips button').forEach(chip => {
+                chip.addEventListener('click', () => { aiText.value = chip.textContent.trim(); aiApply.click(); });
+            });
+
+            function token() {
+                return document.querySelector('input[name="__RequestVerificationToken"]').value;
+            }
+
+            function showAiMsg(text, ok) {
+                aiMsg.classList.remove('d-none', 'alert-success', 'alert-warning');
+                aiMsg.classList.add(ok ? 'alert-success' : 'alert-warning');
+                aiMsg.textContent = text;
+            }
+
+            aiApply.addEventListener('click', () => {
+                const file = fileInput.files && fileInput.files[0];
+                const instruction = aiText.value.trim();
+                if (!file) { showAiMsg('Choose a poster image first.', false); return; }
+                if (!instruction) { showAiMsg('Type what you want changed, e.g. "remove all text and make it blue".', false); return; }
+
+                aiApply.disabled = true;
+                const oldLabel = aiApply.textContent;
+                aiApply.textContent = 'Thinking...';
+                const fd = new FormData();
+                fd.append('__RequestVerificationToken', token());
+                fd.append('upload', file);
+                fd.append('instruction', instruction);
+
+                fetch('/Templates/AiUpdate', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.ok) { showAiMsg(data.message || 'Could not apply that.', false); return; }
+                        showAiMsg(data.message, true);
+                        if (data.image) {
+                            aiThumb.src = data.image;
+                            aiResultWrap.classList.remove('d-none');
+                        }
+                        boxes = (data.boxes || []).map(b => ({ type: b.type, x: b.x, y: b.y, w: b.w, h: b.h }));
+                        if (data.treatment) setTreatment(data.treatment);
+                        invalidateTreatPreview();
+                        sync();
+                    })
+                    .catch(() => showAiMsg('Something went wrong applying that instruction.', false))
+                    .finally(() => {
+                        aiApply.disabled = false;
+                        aiApply.textContent = oldLabel;
+                    });
+            });
+
+            // ------------------------------------------------ colour treatments
+
+            const tintControls = document.getElementById('tintControls');
+            const freshControls = document.getElementById('freshControls');
+            const tintHex = document.getElementById('tintHex');
+            const tintRange = document.getElementById('tintStrengthRange');
+            const tintLabel = document.getElementById('tintStrengthLabel');
+            const tintHidden = document.getElementById('TintStrength');
+            const freshThemeSel = document.getElementById('freshTheme');
+            const freshAccent = document.getElementById('freshAccent');
+
+            function currentKind() {
+                const el = document.querySelector('input[name="TreatmentKind"]:checked');
+                return el ? el.value : 'original';
+            }
+
+            function updateTreatmentControls() {
+                const kind = currentKind();
+                tintControls.classList.toggle('d-none', kind !== 'tint');
+                freshControls.classList.toggle('d-none', kind !== 'fresh');
+                tintLabel.textContent = tintRange.value + '%';
+                tintHidden.value = (parseInt(tintRange.value, 10) / 100).toFixed(2);
+
+                document.querySelectorAll('.treat-option').forEach(opt => {
+                    const radio = opt.querySelector('input[type="radio"]');
+                    opt.classList.toggle('selected', radio && radio.checked);
+                });
+            }
+
+            function setTreatment(t) {
+                const kind = t.kind || 'original';
+                document.querySelectorAll('.treat-radio').forEach(r => { r.checked = r.value === kind; });
+                if (t.tintHex) tintHex.value = t.tintHex;
+                if (typeof t.tintStrength === 'number') tintRange.value = Math.round(t.tintStrength * 100);
+                if (t.freshTheme) freshThemeSel.value = t.freshTheme;
+                if (t.freshAccent) freshAccent.value = t.freshAccent;
+                updateTreatmentControls();
+            }
+
+            document.querySelectorAll('.treat-radio').forEach(r =>
+                r.addEventListener('change', () => { updateTreatmentControls(); invalidateTreatPreview(); }));
+            [tintHex, tintRange, freshThemeSel, freshAccent].forEach(el =>
+                el.addEventListener('input', () => { updateTreatmentControls(); invalidateTreatPreview(); }));
+
+            const btnTreatPreview = document.getElementById('btnTreatPreview');
+            const treatThumb = document.getElementById('treatThumb');
+            const treatThumbWrap = document.getElementById('treatThumbWrap');
+            const treatNote = document.getElementById('treatNote');
+            let treatUrl = '';
+
+            function invalidateTreatPreview() {
+                if (treatUrl) { URL.revokeObjectURL(treatUrl); treatUrl = ''; }
+                treatThumbWrap.classList.add('d-none');
+                treatNote.classList.add('d-none');
+            }
+
+            btnTreatPreview.addEventListener('click', () => {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) { alert('Choose a poster image first.'); return; }
+                const fd = new FormData();
+                fd.append('__RequestVerificationToken', token());
+                fd.append('upload', file);
+                const t = {
+                    kind: currentKind(),
+                    tintHex: tintHex.value,
+                    strength: (parseInt(tintRange.value, 10) / 100).toFixed(2),
+                    freshTheme: freshThemeSel.value,
+                    freshAccent: freshAccent.value
+                };
+                fd.append('kind', t.kind);
+                fd.append('tintHex', t.tintHex);
+                fd.append('strength', t.strength);
+                fd.append('freshTheme', t.freshTheme);
+                fd.append('freshAccent', t.freshAccent);
+
+                btnTreatPreview.disabled = true;
+                fetch('/Templates/PreviewTreatment', { method: 'POST', body: fd })
+                    .then(r => { if (!r.ok) throw new Error('preview failed'); return r.blob(); })
+                    .then(blob => {
+                        if (treatUrl) URL.revokeObjectURL(treatUrl);
+                        treatUrl = URL.createObjectURL(blob);
+                        treatThumb.src = treatUrl;
+                        treatThumbWrap.classList.remove('d-none');
+                        treatNote.classList.remove('d-none');
+                    })
+                    .catch(() => alert('Could not build the preview.'))
+                    .finally(() => { btnTreatPreview.disabled = false; });
+            });
+
+            updateTreatmentControls();
+        })();
+    </script>
+}

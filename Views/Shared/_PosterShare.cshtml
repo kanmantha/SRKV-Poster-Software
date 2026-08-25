@@ -1,0 +1,45 @@
+@model (int PosterId, string ImageUrl, string ShareText, string ButtonClass)
+<button type="button" class="btn @Model.ButtonClass share-poster-btn"
+        data-image-url="@Model.ImageUrl"
+        data-share-text="@Model.ShareText">
+    Share
+</button>
+<script>
+    window.__posterShareInit = window.__posterShareInit || (function () {
+        document.addEventListener('click', async function (e) {
+            const btn = e.target.closest('.share-poster-btn');
+            if (!btn || btn.disabled) return;
+            const url = btn.dataset.imageUrl;
+            const text = (btn.dataset.shareText || '').trim();
+            const old = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Sharing…';
+            try {
+                const resp = await fetch(url);
+                const blob = await resp.blob();
+                const file = new File([blob], 'poster.png', { type: blob.type || 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], text: text });
+                    btn.textContent = 'Shared ✓';
+                } else {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'poster.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+                    btn.textContent = 'Saved + WhatsApp opened';
+                }
+            } catch (err) {
+                if (!err || err.name !== 'AbortError') {
+                    alert('Could not share the poster. Try downloading it instead.');
+                }
+                btn.textContent = old;
+            } finally {
+                setTimeout(function () { btn.textContent = old; btn.disabled = false; }, 1800);
+            }
+        });
+        return true;
+    })();
+</script>
