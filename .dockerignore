@@ -4,7 +4,6 @@ bin
 obj
 *.user
 *.bak
-data/
 *.db
 *.sqlite
 *.sqlite3
@@ -16,3 +15,5 @@ Migrations/
 Properties/
 dp-keys/
 *.log
+Dockerfile.bak
+appsettings.json
