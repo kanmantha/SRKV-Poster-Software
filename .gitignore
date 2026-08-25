@@ -7,5 +7,6 @@ wwwroot/posters/
 # Generated template thumbnails + imported backgrounds
 wwwroot/templates/
 
-# SQLite database (created at runtime)
-data/
+# Runtime data files (NOT the Data/ source folder)
+data/*.db
+data/*.sqlite
