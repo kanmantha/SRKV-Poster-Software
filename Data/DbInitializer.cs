@@ -6,9 +6,16 @@ namespace DailyPosterGenerator.Data;
 
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(DailyPosterDbContext db, IConfiguration config)
+    public static async Task InitializeAsync(DailyPosterDbContext db, IConfiguration config, bool useSqlite = false)
     {
-        await db.Database.MigrateAsync();
+        if (useSqlite)
+        {
+            await db.Database.EnsureCreatedAsync();
+        }
+        else
+        {
+            await db.Database.MigrateAsync();
+        }
 
         await SeedPlatformsAsync(db);
         await SeedDefaultTenantAsync(db);
@@ -243,7 +250,7 @@ public static class DbInitializer
 
     private static async Task SeedAdminUserAsync(DailyPosterDbContext db, IConfiguration config)
     {
-        var adminEmail = (config["SaaS:AdminEmail"] ?? "admin@srkv.ac.in").Trim().ToLowerInvariant();
+        var adminEmail = (config["AdminEmail"] ?? config["SaaS:AdminEmail"] ?? "admin@srkv.ac.in").Trim().ToLowerInvariant();
         if (await db.AppUsers.AnyAsync(u => u.Email == adminEmail))
         {
             return;
@@ -264,7 +271,7 @@ public static class DbInitializer
             IsAdmin = true
         };
 
-        var password = config["SaaS:AdminPassword"] ?? "Admin@12345";
+        var password = config["AdminPassword"] ?? config["SaaS:AdminPassword"] ?? "Admin@12345";
         user.PasswordHash = new PasswordHasher<AppUser>().HashPassword(user, password);
 
         db.AppUsers.Add(user);

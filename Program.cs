@@ -145,7 +145,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DailyPosterDbContext>();
-    await DbInitializer.InitializeAsync(db, scope.ServiceProvider.GetRequiredService<IConfiguration>());
+    await DbInitializer.InitializeAsync(db, scope.ServiceProvider.GetRequiredService<IConfiguration>(), useSqlite);
 }
 
 // Configure the HTTP request pipeline.
