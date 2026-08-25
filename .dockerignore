@@ -7,3 +7,12 @@ obj
 data/
 *.db
 *.sqlite
+*.sqlite3
+wwwroot/posters/
+wwwroot/templates/imports/
+wwwroot/templates/template_*.png
+wwwroot/branding/
+Migrations/
+Properties/
+dp-keys/
+*.log
