@@ -2,8 +2,6 @@
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY DailyPosterGenerator.csproj .
-RUN dotnet restore DailyPosterGenerator.csproj
 COPY . .
 RUN dotnet publish DailyPosterGenerator.csproj -c Release -o /app/publish /p:UseAppHost=false
 
