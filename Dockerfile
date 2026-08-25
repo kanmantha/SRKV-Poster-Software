@@ -10,10 +10,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 libharfbuzz0b libfreetype6 libjpeg62-turbo libpng16-16 libtiff5 libwebp7 libgif7 fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /app/data /app/wwwroot/posters /app/wwwroot/templates /app/wwwroot/logos
-
 ENV DOTNET_gcServer=0
 ENV DOTNET_GCHeapHardLimit=0x1C000000
 ENV DOTNET_GCHeapCount=1
