@@ -1,0 +1,108 @@
+@model DailyPosterGenerator.Models.GenerateQuestionsViewModel
+@{ ViewData["Title"] = "Generate Questions"; }
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+            </a>
+            <div>
+                <h1 class="fw-bold mb-0">Generate Questions</h1>
+                <p class="text-muted mb-0">Source: <strong>@Model.FileName</strong></p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-5">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white fw-semibold">
+                        Source Preview
+                        <span class="badge bg-secondary float-end">
+                            @ViewBag.ExtractedPages pages &middot; @string.Format("{0:N0}", ViewBag.ExtractedChars) chars
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="bg-light rounded p-3" style="max-height:400px; overflow-y:auto; font-size:0.85rem; white-space:pre-wrap;">@ViewBag.ExtractedPreview</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white fw-semibold">Generation Settings</div>
+                    <div class="card-body">
+                        <form asp-action="Generate" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ExtractedText" value="@Model.ExtractedText" />
+                            <input type="hidden" name="FileName" value="@Model.FileName" />
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Number of Questions</label>
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="range" name="QuestionCount" id="countSlider" min="5" max="200" value="@Model.QuestionCount"
+                                           class="form-range flex-grow-1" />
+                                    <input type="number" id="countNum" value="@Model.QuestionCount" min="5" max="200"
+                                           class="form-control form-control-sm" style="width:80px;" />
+                                </div>
+                                <div class="form-text">5 to 200 questions</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Difficulty Level</label>
+                                <select name="Difficulty" class="form-select">
+                                    <option value="mixed" selected>Mixed (30% Easy, 50% Medium, 20% Hard)</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Question Types</label>
+                                <select name="QuestionType" class="form-select">
+                                    <option value="all" selected>All Types (MCQ, Short Answer, Long Answer, True/False, etc.)</option>
+                                    <option value="mcq">Multiple Choice (MCQ) only</option>
+                                    <option value="short_answer">Short Answer only</option>
+                                    <option value="long_answer">Long Answer / Essay only</option>
+                                    <option value="true_false">True / False only</option>
+                                    <option value="problem_solving">Problem Solving only</option>
+                                    <option value="definition">Definitions only</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Additional Instructions <span class="text-muted fw-normal">(optional)</span></label>
+                                <textarea name="AdditionalInstructions" class="form-control" rows="3"
+                                          placeholder="e.g., Focus on Chapter 3, include numerical problems, class 10 level..."></textarea>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" id="genBtn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="me-2">
+                                        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />
+                                    </svg>
+                                    Generate Questions with AI
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const slider = document.getElementById('countSlider');
+    const numInput = document.getElementById('countNum');
+    slider.addEventListener('input', () => numInput.value = slider.value);
+    numInput.addEventListener('input', () => slider.value = numInput.value);
+
+    document.getElementById('genBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating questions... This may take a minute.';
+    });
+</script>
+}

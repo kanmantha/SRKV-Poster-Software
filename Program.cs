@@ -117,6 +117,7 @@ builder.Services.AddSingleton<ITemplateThumbnailService, TemplateThumbnailServic
 builder.Services.AddSingleton<IPosterGenerationService, PosterGenerationService>();
 builder.Services.AddSingleton<IPublishService, PublishService>();
 builder.Services.AddSingleton<IActivityLog, ActivityLogService>();
+builder.Services.AddHttpClient<IQuestionBankService, QuestionBankService>();
 builder.Services.AddHostedService<DailyPosterBackgroundService>();
 
 // SaaS: auth.

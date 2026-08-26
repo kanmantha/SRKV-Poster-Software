@@ -1,0 +1,162 @@
+@model DailyPosterGenerator.Models.GeneratedQuestionsViewModel
+@{ ViewData["Title"] = "Generated Questions"; }
+
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h1 class="fw-bold mb-0">Generated Questions</h1>
+                <p class="text-muted mb-0">
+                    @Model.QuestionCount questions &middot; Topic: <strong>@Model.Topic</strong>
+                    @if (!string.IsNullOrEmpty(Model.FileName))
+                    {
+                        <span> &middot; Source: @Model.FileName</span>
+                    }
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="copyAll()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="me-1"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy All
+                </button>
+                <button class="btn btn-outline-success" onclick="downloadTxt()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="me-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download .txt
+                </button>
+                <button class="btn btn-outline-secondary" onclick="downloadJson()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="me-1"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg>
+                    Download .json
+                </button>
+                <a asp-action="Index" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Upload
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-primary mb-0">@Model.Questions.Count</h3>
+                        <small class="text-muted">Total Questions</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-success mb-0">@Model.Questions.Count(q => q.Type == "mcq")</h3>
+                        <small class="text-muted">MCQ</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-warning mb-0">@Model.Questions.Count(q => q.Difficulty == "easy")</h3>
+                        <small class="text-muted">Easy</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-danger mb-0">@Model.Questions.Count(q => q.Difficulty == "hard")</h3>
+                        <small class="text-muted">Hard</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="questionsContainer">
+            @foreach (var q in Model.Questions)
+            {
+                <div class="card border-0 shadow-sm mb-3 question-card" data-type="@q.Type" data-difficulty="@q.Difficulty">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start gap-3">
+                            <span class="badge bg-secondary rounded-pill px-3 py-2 mt-1">@q.Number</span>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span class="badge bg-@(q.Type == "mcq" ? "primary" : q.Type == "true_false" ? "info" : q.Type == "long_answer" ? "dark" : "secondary") bg-opacity-10 text-@(q.Type == "mcq" ? "primary" : q.Type == "true_false" ? "info" : q.Type == "long_answer" ? "dark" : "secondary")">
+                                        @q.Type.Replace("_", " ")
+                                    </span>
+                                    <span class="badge bg-@(q.Difficulty == "easy" ? "success" : q.Difficulty == "hard" ? "danger" : "warning") bg-opacity-10 text-@(q.Difficulty == "easy" ? "success" : q.Difficulty == "hard" ? "danger" : "warning")">
+                                        @q.Difficulty
+                                    </span>
+                                </div>
+                                <p class="fw-semibold mb-2 question-text">@q.Text</p>
+
+                                @if (!string.IsNullOrEmpty(q.OptionA))
+                                {
+                                    <div class="ms-3 mb-2">
+                                        <div class="mb-1"><strong>A.</strong> @q.OptionA</div>
+                                        <div class="mb-1"><strong>B.</strong> @q.OptionB</div>
+                                        <div class="mb-1"><strong>C.</strong> @q.OptionC</div>
+                                        <div class="mb-1"><strong>D.</strong> @q.OptionD</div>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(q.Answer))
+                                {
+                                    <div class="mt-2 p-2 bg-success bg-opacity-10 rounded">
+                                        <strong class="text-success">Answer:</strong>
+                                        <span class="answer-text">@q.Answer</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const questions = @Html.Raw(Json.Serialize(Model.Questions));
+    const topic = '@Model.Topic';
+
+    function copyAll() {
+        let text = `Questions on: ${topic}\n${'='.repeat(50)}\n\n`;
+        questions.forEach(q => {
+            text += `${q.number}. ${q.text}\n`;
+            if (q.optionA) {
+                text += `   A) ${q.optionA}\n   B) ${q.optionB}\n   C) ${q.optionC}\n   D) ${q.optionD}\n`;
+            }
+            if (q.answer) text += `   Answer: ${q.answer}\n`;
+            text += '\n';
+        });
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Copied to clipboard!');
+        });
+    }
+
+    function downloadTxt() {
+        let text = `Questions on: ${topic}\n${'='.repeat(50)}\n\n`;
+        questions.forEach(q => {
+            text += `${q.number}. ${q.text}\n`;
+            if (q.optionA) {
+                text += `   A) ${q.optionA}\n   B) ${q.optionB}\n   C) ${q.optionC}\n   D) ${q.optionD}\n`;
+            }
+            if (q.answer) text += `   Answer: ${q.answer}\n`;
+            text += '\n';
+        });
+        downloadFile(text, `questions-${topic.replace(/\s+/g, '-').toLowerCase()}.txt`, 'text/plain');
+    }
+
+    function downloadJson() {
+        const data = { topic, questions };
+        downloadFile(JSON.stringify(data, null, 2), `questions-${topic.replace(/\s+/g, '-').toLowerCase()}.json`, 'application/json');
+    }
+
+    function downloadFile(content, name, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+}
