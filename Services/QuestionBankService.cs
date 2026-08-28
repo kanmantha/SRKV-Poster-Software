@@ -72,17 +72,21 @@ public class QuestionBankService : IQuestionBankService
         var systemPrompt = BuildSystemPrompt();
         var userPrompt = BuildUserPrompt(request);
 
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            model,
-            messages = new object[]
+            ["model"] = model,
+            ["messages"] = new object[]
             {
                 new { role = "system", content = systemPrompt },
                 new { role = "user", content = userPrompt }
             },
-            temperature = 0.8,
-            max_tokens = 8000
+            ["temperature"] = 0.8,
+            ["max_tokens"] = 8000
         };
+        if (endpoint.Contains("groq", StringComparison.OrdinalIgnoreCase))
+        {
+            payload["reasoning_format"] = "hidden";
+        }
 
         var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{endpoint}/chat/completions")
         {
