@@ -68,7 +68,6 @@ public class QuestionBankService : IQuestionBankService
         var apiKey = await _settings.GetAsync("ai.apiKey");
         var model = await _settings.GetAsync("ai.chatModel", "gpt-4o-mini");
         var timeoutSeconds = int.Parse(await _settings.GetAsync("ai.timeoutSeconds", "90") ?? "90");
-        _http.Timeout = TimeSpan.FromSeconds(Math.Max(timeoutSeconds, 180));
 
         var systemPrompt = BuildSystemPrompt();
         var userPrompt = BuildUserPrompt(request);
@@ -91,7 +90,9 @@ public class QuestionBankService : IQuestionBankService
         };
         requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        using var response = await _http.SendAsync(requestMessage, ct);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(180, timeoutSeconds)));
+        using var response = await _http.SendAsync(requestMessage, timeoutCts.Token);
         var body = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)

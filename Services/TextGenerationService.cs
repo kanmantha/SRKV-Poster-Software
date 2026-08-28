@@ -104,7 +104,6 @@ public class OpenAiTextGenerationService : ITextGenerationService
         var apiKey = await _settings.GetAsync("ai.apiKey");
         var model = await _settings.GetAsync("ai.chatModel", "gpt-4o-mini");
         var timeoutSeconds = int.Parse(await _settings.GetAsync("ai.timeoutSeconds", "90") ?? "90");
-        _http.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
         var date = poster.EventDate.ToString("MMMM d, yyyy");
         var prompt = BuildPrompt(poster, date);
@@ -128,7 +127,9 @@ public class OpenAiTextGenerationService : ITextGenerationService
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        using var response = await _http.SendAsync(request, ct);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(10, timeoutSeconds)));
+        using var response = await _http.SendAsync(request, timeoutCts.Token);
         var body = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
