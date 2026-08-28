@@ -1820,6 +1820,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 92);
+        poster.ImageBytes = data.ToArray();
         using var stream = File.Create(fullPath);
         data.SaveTo(stream);
 

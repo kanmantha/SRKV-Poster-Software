@@ -6,9 +6,10 @@ namespace DailyPosterGenerator.Data;
 
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(DailyPosterDbContext db, IConfiguration config, bool useSqlite = false)
+    public static async Task InitializeAsync(DailyPosterDbContext db, IConfiguration config, bool useSqlite = false, bool usePostgres = false)
     {
-        if (useSqlite)
+        // SQLite and PostgreSQL use EnsureCreated (model-derived schema); SQL Server uses the migrations.
+        if (useSqlite || usePostgres)
         {
             await db.Database.EnsureCreatedAsync();
         }

@@ -47,6 +47,8 @@ public class Poster
     [StringLength(500)]
     public string? ImagePath { get; set; }
 
+    public byte[]? ImageBytes { get; set; }
+
     public PosterStatus Status { get; set; } = PosterStatus.Draft;
 
     public PosterSource Source { get; set; } = PosterSource.Automatic;

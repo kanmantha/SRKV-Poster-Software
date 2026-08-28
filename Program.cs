@@ -16,16 +16,33 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database: SQL Server locally, SQLite on Render (or when DATABASE_URL is set).
-var useSqlite = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DATABASE_URL"))
-    || builder.Configuration.GetValue<bool>("UseSqlite");
+// Database provider selection:
+//   - DATABASE_URL starting with postgres:// (or postgresql://) -> PostgreSQL (e.g. Neon/Supabase on Render)
+//   - DATABASE_URL set otherwise, or UseSqlite=true -> SQLite (local lightweight mode)
+//   - otherwise -> SQL Server (local development)
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+var isPostgres = !string.IsNullOrWhiteSpace(databaseUrl)
+    && (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        || databaseUrl.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase));
+var useSqlite = !isPostgres
+    && (!string.IsNullOrWhiteSpace(databaseUrl) || builder.Configuration.GetValue<bool>("UseSqlite"));
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=DailyPosterGenerator;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
 
-if (useSqlite)
+if (isPostgres)
+{
+    var npgsql = new NpgsqlConnectionStringBuilder(databaseUrl!);
+    npgsql.SslMode = SslMode.Require;
+    builder.Services.AddDbContextFactory<DailyPosterDbContext>(options =>
+        options.UseNpgsql(npgsql.ConnectionString));
+    builder.Services.AddScoped<DailyPosterDbContext>(sp =>
+        sp.GetRequiredService<IDbContextFactory<DailyPosterDbContext>>().CreateDbContext());
+}
+else if (useSqlite)
 {
     var dbPath = Path.Combine(builder.Environment.ContentRootPath, "data", "poster.db");
     Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
@@ -146,7 +163,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DailyPosterDbContext>();
-    await DbInitializer.InitializeAsync(db, scope.ServiceProvider.GetRequiredService<IConfiguration>(), useSqlite);
+    await DbInitializer.InitializeAsync(db, scope.ServiceProvider.GetRequiredService<IConfiguration>(), useSqlite, isPostgres);
 }
 
 // Configure the HTTP request pipeline.

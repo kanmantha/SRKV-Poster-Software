@@ -79,6 +79,11 @@ public class PostersController : Controller
         }
 
         var fullPath = MapImagePath(poster.ImagePath);
+        if (poster.ImageBytes is { Length: > 0 })
+        {
+            return File(poster.ImageBytes, "image/png");
+        }
+
         if (!System.IO.File.Exists(fullPath))
         {
             return NotFound();
@@ -91,18 +96,23 @@ public class PostersController : Controller
     {
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
         var poster = await db.Posters.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id && p.TenantId == _tenant.TenantId, ct);
-        if (poster is null || string.IsNullOrWhiteSpace(poster.ImagePath))
-        {
-            return NotFound();
-        }
-
-        var fullPath = MapImagePath(poster.ImagePath);
-        if (!System.IO.File.Exists(fullPath))
+        if (poster is null)
         {
             return NotFound();
         }
 
         var fileName = BuildFileName(poster.EventTitle, poster.EventDate);
+        if (poster.ImageBytes is { Length: > 0 })
+        {
+            return File(poster.ImageBytes, "image/png", fileName);
+        }
+
+        var fullPath = MapImagePath(poster.ImagePath ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(poster.ImagePath) || !System.IO.File.Exists(fullPath))
+        {
+            return NotFound();
+        }
+
         return PhysicalFile(fullPath, "image/png", fileName);
     }
 
