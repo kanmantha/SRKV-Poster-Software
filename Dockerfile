@@ -6,7 +6,7 @@ COPY . .
 RUN dotnet publish DailyPosterGenerator.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
-RUN apt-get update && apt-get install -y --no-install-recommends fontconfig libfontconfig1 libharfbuzz0b libfreetype6 libjpeg-turbo8 libpng16-16 libtiff6 libwebp7 libgif7 fonts-dejavu-core fonts-liberation fonts-liberation2 && rm -rf /var/lib/apt/lists/* && fc-cache -f
+RUN apt-get update && apt-get install -y --no-install-recommends fontconfig libfontconfig1 libharfbuzz0b libfreetype6 libjpeg-turbo8 libpng16-16 libtiff6 libwebp7 libgif7 libbz2-1.0 libexpat1 libzstd1 fonts-dejavu-core fonts-liberation fonts-liberation2 && rm -rf /var/lib/apt/lists/* && fc-cache -f
 WORKDIR /app
 COPY --from=build /app/publish .
 RUN mkdir -p /app/data /app/wwwroot/posters /app/wwwroot/templates /app/wwwroot/logos

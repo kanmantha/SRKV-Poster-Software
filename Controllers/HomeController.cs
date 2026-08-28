@@ -163,7 +163,7 @@ public class HomeController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Preview render failed for {Date}", date.Value.ToString("yyyy-MM-dd"));
-            return Content($"Preview render failed: {ex.Message}", "text/plain");
+            return Content($"Preview render failed:\n{ex}", "text/plain");
         }
 
         if (string.IsNullOrWhiteSpace(path))
