@@ -97,7 +97,7 @@ public class QuestionBankService : IQuestionBankService
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("AI question generation API returned {Status}: {Body}", response.StatusCode, body.Length > 300 ? body[..300] : body);
-            throw new InvalidOperationException($"AI service failed ({response.StatusCode}). Make sure AI is configured in Settings.");
+            throw new InvalidOperationException(ReadApiError((int)response.StatusCode, body));
         }
 
         using var doc = JsonDocument.Parse(body);
@@ -112,6 +112,36 @@ public class QuestionBankService : IQuestionBankService
             Questions = questions,
             RawResponse = content ?? string.Empty,
             FileName = request.FileName
+        };
+    }
+
+    private static string ReadApiError(int statusCode, string body)
+    {
+        var message = string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var error) &&
+                error.TryGetProperty("message", out var msg))
+            {
+                message = msg.GetString() ?? string.Empty;
+            }
+        }
+        catch (JsonException)
+        {
+            // ignore parse failures
+        }
+
+        return statusCode switch
+        {
+            401 => "AI authentication failed. Check your AI API key in Settings.",
+            403 => "Access to the AI API was denied.",
+            429 when message.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
+                      message.Contains("billing", StringComparison.OrdinalIgnoreCase) =>
+                "The AI account has no credits or billing configured. Add a payment method at platform.openai.com/settings/organization/billing, then try again.",
+            429 => "The AI service is rate-limited. Wait a minute and try again.",
+            _ when !string.IsNullOrWhiteSpace(message) => $"AI service error: {message}",
+            _ => $"AI service failed (HTTP {statusCode}). Check your AI configuration in Settings."
         };
     }
 
