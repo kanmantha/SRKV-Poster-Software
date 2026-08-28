@@ -314,8 +314,8 @@ public class PosterGenerationService : IPosterGenerationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Preview render failed for {Date}", date.ToString("yyyy-MM-dd"));
-            return null;
+            _logger.LogError(ex, "Preview render failed for {Date}", date.ToString("yyyy-MM-dd"));
+            throw;
         }
     }
 

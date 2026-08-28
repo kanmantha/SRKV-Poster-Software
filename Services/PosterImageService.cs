@@ -48,6 +48,21 @@ public class SkiaSharpPosterImageService : IPosterImageService
         _logger = logger;
     }
 
+    private static SKTypeface SafeTypeface(string family, SKFontStyle style)
+    {
+        var tf = SKTypeface.FromFamilyName(family, style);
+        if (tf is null && !string.Equals(family, "DejaVu Sans", StringComparison.OrdinalIgnoreCase))
+        {
+            tf = SKTypeface.FromFamilyName("DejaVu Sans", style);
+        }
+        tf ??= SKTypeface.Default;
+        if (tf is null)
+        {
+            throw new InvalidOperationException($"No usable font typeface for '{family}'.");
+        }
+        return tf;
+    }
+
     public async Task<string> GenerateAsync(Poster poster, string? themeOverride = null, string? accentOverride = null, PosterTemplate? template = null, bool logosOnly = false, CancellationToken ct = default)
     {
         return await RenderAsync(poster, themeOverride, accentOverride, template, preview: false, logosOnly: logosOnly, ct);
@@ -301,7 +316,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
 
         // Giant day-of-month numeral as a background watermark.
         using (var numeralPaint = new SKPaint { Color = theme.Watermark, IsAntialias = true })
-        using (var numeralFont = new SKFont(SKTypeface.FromFamilyName("Georgia", SKFontStyle.Bold), 560))
+        using (var numeralFont = new SKFont(SafeTypeface("Georgia", SKFontStyle.Bold), 560))
         {
             var numeral = poster.EventDate.Day.ToString();
             var numWidth = numeralFont.MeasureText(numeral);
@@ -425,8 +440,8 @@ public class SkiaSharpPosterImageService : IPosterImageService
         var textColor = HexColor.TryParse(template.TextColor, out var tc) ? tc : SKColors.White;
         var accent = HexColor.TryParse(template.AccentColor, out var ac) ? ac : new SKColor(255, 102, 0);
 
-        using var sans = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal);
-        using var sansBold = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold);
+        using var sans = SafeTypeface("Segoe UI", SKFontStyle.Normal);
+        using var sansBold = SafeTypeface("Segoe UI", SKFontStyle.Bold);
 
         // Accent underline bar under the header.
         using (var bar = new SKPaint { Color = accent, IsAntialias = true })
@@ -642,10 +657,10 @@ public class SkiaSharpPosterImageService : IPosterImageService
         const int margin = 92;
         const int usable = Width - (margin * 2);
 
-        using var serif = SKTypeface.FromFamilyName("Georgia", SKFontStyle.Bold);
-        using var sans = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal);
-        using var sansBold = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold);
-        using var mono = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Normal);
+        using var serif = SafeTypeface("Georgia", SKFontStyle.Bold);
+        using var sans = SafeTypeface("Segoe UI", SKFontStyle.Normal);
+        using var sansBold = SafeTypeface("Segoe UI", SKFontStyle.Bold);
+        using var mono = SafeTypeface("Consolas", SKFontStyle.Normal);
 
         // ---- 1. Header row -------------------------------------------------
         using (var markPaint = new SKPaint { Color = theme.Accent, IsAntialias = true })
@@ -1014,10 +1029,10 @@ public class SkiaSharpPosterImageService : IPosterImageService
 
     private void DrawSrvContent(SKCanvas canvas, Poster poster, PosterTheme theme, Brand brand, SKImage? hero)
     {
-        using var serifBold = SKTypeface.FromFamilyName("Georgia", SKFontStyle.Bold);
-        using var serifItalic = SKTypeface.FromFamilyName("Georgia", SKFontStyle.BoldItalic);
-        using var sansBold = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold);
-        using var sans = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal);
+        using var serifBold = SafeTypeface("Georgia", SKFontStyle.Bold);
+        using var serifItalic = SafeTypeface("Georgia", SKFontStyle.BoldItalic);
+        using var sansBold = SafeTypeface("Segoe UI", SKFontStyle.Bold);
+        using var sans = SafeTypeface("Segoe UI", SKFontStyle.Normal);
 
         var navy = theme.Accent;
         var gold = theme.Secondary;
@@ -1420,14 +1435,14 @@ public class SkiaSharpPosterImageService : IPosterImageService
         using var ring2 = new SKPaint { Color = navy, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, IsAntialias = true };
         canvas.DrawCircle(cx, cy, r - 4, ring2);
 
-        using var sixtyFont = new SKFont(SKTypeface.FromFamilyName("Georgia", SKFontStyle.Bold), 34);
+        using var sixtyFont = new SKFont(SafeTypeface("Georgia", SKFontStyle.Bold), 34);
         using var sixtyPaint = new SKPaint { Color = navy, IsAntialias = true };
         canvas.DrawText("60", cx, cy - 4, SKTextAlign.Center, sixtyFont, sixtyPaint);
 
-        using var yearsFont = new SKFont(SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold), 12);
+        using var yearsFont = new SKFont(SafeTypeface("Segoe UI", SKFontStyle.Bold), 12);
         canvas.DrawText("YEARS", cx, cy + 18, SKTextAlign.Center, yearsFont, sixtyPaint);
 
-        using var srvFont = new SKFont(SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold), 14);
+        using var srvFont = new SKFont(SafeTypeface("Segoe UI", SKFontStyle.Bold), 14);
         canvas.DrawText("SRKV", cx, cy + 36, SKTextAlign.Center, srvFont, sixtyPaint);
     }
 
@@ -1550,7 +1565,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
         {
             canvas.DrawRoundRect(rect, 3, 3, paint);
             using var fPaint = new SKPaint { Color = navy, IsAntialias = true };
-            using var fFont = new SKFont(SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold), 11);
+            using var fFont = new SKFont(SafeTypeface("Segoe UI", SKFontStyle.Bold), 11);
             canvas.DrawText("f", x + 7.5f, cy + 4, SKTextAlign.Center, fFont, fPaint);
         }
         else

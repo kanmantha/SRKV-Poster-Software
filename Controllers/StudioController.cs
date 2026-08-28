@@ -164,7 +164,7 @@ public class StudioController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Studio create failed for prompt '{Prompt}' (round {Round}).", prompt, round);
-            return StatusCode(500, new { ok = false, error = "Something went wrong while designing your poster." });
+            return StatusCode(500, new { ok = false, error = $"Something went wrong while designing your poster: {ex.Message}" });
         }
     }
 
