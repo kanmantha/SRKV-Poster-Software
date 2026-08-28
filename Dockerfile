@@ -15,6 +15,7 @@ ENV DOTNET_gcServer=0
 ENV DOTNET_GCHeapHardLimit=0x1C000000
 ENV DOTNET_GCHeapCount=1
 ENV DOTNET_EnableDiagnostics=0
+ENV DOTNET_hostBuilder__reloadConfigOnChange=false
 
 ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
 ENV ASPNETCORE_ENVIRONMENT=Production
