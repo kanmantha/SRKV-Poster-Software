@@ -108,18 +108,21 @@ public class OpenAiTextGenerationService : ITextGenerationService
         var date = poster.EventDate.ToString("MMMM d, yyyy");
         var prompt = BuildPrompt(poster, date);
 
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            model,
-            messages = new[]
+            ["model"] = model,
+            ["messages"] = new[]
             {
                 new { role = "system", content = "You are a social media copywriter and poster designer. Always answer with valid JSON only: {\"caption\": \"...\", \"hashtags\": [\"#a\", \"#b\"]}. Keep the caption under 220 characters, engaging and warm, and provide 5 to 8 relevant hashtags." },
                 new { role = "user", content = prompt }
             },
-            temperature = 0.9,
-            max_tokens = 300,
-            response_format = new { type = "json_object" }
+            ["temperature"] = 0.9,
+            ["max_tokens"] = 1200
         };
+        if (endpoint.Contains("groq", StringComparison.OrdinalIgnoreCase))
+        {
+            payload["reasoning_format"] = "hidden";
+        }
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"{endpoint}/chat/completions")
         {
