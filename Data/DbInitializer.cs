@@ -101,9 +101,18 @@ public static class DbInitializer
 
         foreach (var (key, value) in defaults)
         {
-            if (!await db.SystemSettings.AnyAsync(s => s.TenantId == tenantId && s.Key == key))
+            var existing = await db.SystemSettings.FirstOrDefaultAsync(s => s.TenantId == tenantId && s.Key == key);
+            if (existing is null)
             {
                 db.SystemSettings.Add(new SystemSetting { TenantId = tenantId, Key = key, Value = value });
+            }
+            else if (key.StartsWith("ai."))
+            {
+                var envValue = Environment.GetEnvironmentVariable("AppSettings__" + key.Replace(".", "__"));
+                if (!string.IsNullOrWhiteSpace(envValue))
+                {
+                    existing.Value = envValue;
+                }
             }
         }
 
