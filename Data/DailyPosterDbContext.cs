@@ -30,6 +30,18 @@ public class DailyPosterDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        if (Database.IsNpgsql())
+        {
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties()
+                    .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?)))
+                {
+                    property.SetColumnType("timestamp without time zone");
+                }
+            }
+        }
+
         modelBuilder.Entity<PosterEvent>()
             .HasOne(e => e.Poster)
             .WithMany(p => p.Events)
