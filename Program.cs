@@ -35,8 +35,17 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 if (isPostgres)
 {
-    var npgsql = new NpgsqlConnectionStringBuilder(databaseUrl!);
-    npgsql.SslMode = SslMode.Require;
+    var uri = new Uri(databaseUrl!, UriKind.Absolute);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    var npgsql = new NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.IsDefaultPort ? 5432 : uri.Port,
+        Database = uri.AbsolutePath.TrimStart('/'),
+        Username = WebUtility.UrlDecode(userInfo[0]),
+        Password = userInfo.Length > 1 ? WebUtility.UrlDecode(userInfo[1]) : string.Empty,
+        SslMode = SslMode.Require
+    };
     builder.Services.AddDbContextFactory<DailyPosterDbContext>(options =>
         options.UseNpgsql(npgsql.ConnectionString));
     builder.Services.AddScoped<DailyPosterDbContext>(sp =>
