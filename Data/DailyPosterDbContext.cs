@@ -1,5 +1,6 @@
 using DailyPosterGenerator.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace DailyPosterGenerator.Data;
 
@@ -28,16 +29,24 @@ public class DailyPosterDbContext : DbContext
     public DbSet<UsageHistory> UsageHistory => Set<UsageHistory>();
     public DbSet<EmailMessage> EmailMessages => Set<EmailMessage>();
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>().HaveConversion<NaiveDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<NaiveDateTimeConverterNullable>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         if (Database.IsNpgsql())
         {
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
-                foreach (var property in entityType.GetProperties()
-                    .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?)))
+                foreach (var property in entityType.GetProperties())
                 {
-                    property.SetColumnType("timestamp without time zone");
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetColumnType("timestamp without time zone");
+                    }
                 }
             }
         }
@@ -220,5 +229,23 @@ public class DailyPosterDbContext : DbContext
             .WithMany(a => a.Usage)
             .HasForeignKey(u => u.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class NaiveDateTimeConverter : ValueConverter<DateTime, DateTime>
+{
+    public NaiveDateTimeConverter() : base(v => Normalize(v), v => v)
+    {
+    }
+
+    private static DateTime Normalize(DateTime value) =>
+        value.Kind == DateTimeKind.Unspecified ? value : DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
+}
+
+internal sealed class NaiveDateTimeConverterNullable : ValueConverter<DateTime?, DateTime?>
+{
+    public NaiveDateTimeConverterNullable()
+        : base(v => v.HasValue ? (v.Value.Kind == DateTimeKind.Unspecified ? v : DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified)) : v, v => v)
+    {
     }
 }
