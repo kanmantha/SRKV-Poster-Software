@@ -658,6 +658,11 @@ public class SkiaSharpPosterImageService : IPosterImageService
         const int margin = 92;
         const int usable = Width - (margin * 2);
 
+        // The footer block (rule, values strip, school name, tagline) starts here and
+        // must never be overwritten by flowing content, so body copy is clipped above it.
+        const float footerTop = Height - 250;
+        const float contentBottom = footerTop - 28;
+
         using var serif = SafeTypeface("Georgia", SKFontStyle.Bold);
         using var sans = SafeTypeface("Segoe UI", SKFontStyle.Normal);
         using var sansBold = SafeTypeface("Segoe UI", SKFontStyle.Bold);
@@ -767,7 +772,9 @@ public class SkiaSharpPosterImageService : IPosterImageService
         using (var shadowPaint = new SKPaint { Color = theme.Shadow, IsAntialias = true })
         using (var titleFont = new SKFont(serif, hero is not null ? 80 : 86))
         {
-            var maxLines = hero is not null ? 4 : 5;
+            var maxLines = Math.Clamp(
+                (int)((contentBottom - y) / (hero is not null ? 90f : 96f)),
+                1, hero is not null ? 4 : 5);
             var lines = WrapText(titleFont, poster.EventTitle, usable);
             foreach (var line in lines.Take(maxLines))
             {
@@ -799,7 +806,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
 
         // ---- 4. Year chip --------------------------------------------------
         var year = poster.Events.OrderBy(e => e.Kind == "selected" ? 0 : 1).FirstOrDefault()?.Year;
-        if (year.HasValue)
+        if (year.HasValue && y + 58 <= footerTop)
         {
             using var chipPaint = new SKPaint { Color = theme.Accent, IsAntialias = true };
             using var chipTextPaint = new SKPaint { Color = theme.ChipText, IsAntialias = true };
@@ -816,7 +823,8 @@ public class SkiaSharpPosterImageService : IPosterImageService
         {
             using var descPaint = new SKPaint { Color = theme.Muted, IsAntialias = true };
             using var descFont = new SKFont(sans, 36);
-            var maxDesc = hero is not null ? 3 : 6;
+            var maxDesc = Math.Min(hero is not null ? 3 : 6,
+                Math.Max(0, (int)((contentBottom - y) / 51f)));
             foreach (var line in WrapText(descFont, poster.Description, usable).Take(maxDesc))
             {
                 canvas.DrawText(line, margin, y, SKTextAlign.Left, descFont, descPaint);
@@ -825,8 +833,6 @@ public class SkiaSharpPosterImageService : IPosterImageService
         }
 
         // ---- 6. Footer -----------------------------------------------------
-        const float footerTop = Height - 250;
-
         using (var rulePaint = new SKPaint { Color = theme.Frame, IsAntialias = true })
         {
             canvas.DrawRect(SKRect.Create(margin, footerTop, usable, 2), rulePaint);
