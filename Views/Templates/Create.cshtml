@@ -36,6 +36,23 @@
             </div>
 
             <div class="mb-3">
+                <label asp-for="LogoPosition" class="form-label">Logo placement</label>
+                <select asp-for="LogoPosition" class="form-select" id="logoPosition">
+                    <option value="top-right">Top right (default)</option>
+                    <option value="top-left">Top left</option>
+                    <option value="top-center">Top center</option>
+                    <option value="middle-right">Middle right</option>
+                    <option value="center">Center</option>
+                    <option value="middle-left">Middle left</option>
+                    <option value="bottom-right">Bottom right</option>
+                    <option value="bottom-center">Bottom center</option>
+                    <option value="bottom-left">Bottom left</option>
+                    <option value="none">Hidden</option>
+                </select>
+                <span class="form-text small text-muted">Where your organisation logo appears on posters made with this template.</span>
+            </div>
+
+            <div class="mb-3">
                 <label asp-for="Theme" class="form-label">Theme</label>
                 <select asp-for="Theme" class="form-select">
                     @foreach (var th in themes)

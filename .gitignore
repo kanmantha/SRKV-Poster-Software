@@ -10,3 +10,7 @@ wwwroot/templates/
 # Runtime data files (NOT the Data/ source folder)
 data/*.db
 data/*.sqlite
+
+# Build output
+bin/
+obj/

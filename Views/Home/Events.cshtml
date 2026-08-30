@@ -66,25 +66,22 @@
                                 <label class="col template-option @(selected ? "selected" : "")" style="cursor:pointer;">
                                     <input type="radio" name="templateId" value="@t.Id" class="d-none template-radio" @(selected ? "checked" : "") />
                                     <div class="card h-100 template-card">
-                                            @if (!string.IsNullOrWhiteSpace(t.ThumbnailPath))
+                                        <div class="template-thumb">
+                                            <img src="@Url.Action("Thumbnail", "Templates", new { id = t.Id })" alt="@t.Name" loading="lazy" />
+                                            @if (t.IsSystem)
                                             {
-                                                <div class="template-thumb">
-                                                    <img src="@t.ThumbnailPath" alt="@t.Name" loading="lazy" />
-                                                    @if (t.IsSystem)
-                                                    {
-                                                        <span class="badge text-bg-dark template-badge">System</span>
-                                                    }
-                                                    @{
-                                                        var ws = WorkspaceLabel(t.TenantId);
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(ws))
-                                                    {
-                                                        <span class="badge text-bg-secondary template-badge"
-                                                              style="left:auto; right:.5rem; max-width:60%; overflow:hidden; text-overflow:ellipsis;"
-                                                              title="@tenantNames[t.TenantId]">@ws</span>
-                                                    }
-                                                </div>
+                                                <span class="badge text-bg-dark template-badge">System</span>
                                             }
+                                            @{
+                                                var ws = WorkspaceLabel(t.TenantId);
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(ws))
+                                            {
+                                                <span class="badge text-bg-secondary template-badge"
+                                                      style="left:auto; right:.5rem; max-width:60%; overflow:hidden; text-overflow:ellipsis;"
+                                                      title="@tenantNames[t.TenantId]">@ws</span>
+                                            }
+                                        </div>
                                         <div class="template-body">
                                             <div class="fw-semibold">@t.Name</div>
                                             @if (!string.IsNullOrWhiteSpace(t.Description))

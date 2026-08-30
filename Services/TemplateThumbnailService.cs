@@ -41,6 +41,7 @@ public class TemplateThumbnailService : ITemplateThumbnailService
         var finalPath = Path.Combine(dir, fileName);
         if (File.Exists(finalPath))
         {
+            template.ThumbnailBytes ??= await System.IO.File.ReadAllBytesAsync(finalPath, ct);
             return $"/templates/{fileName}";
         }
 
@@ -71,6 +72,7 @@ public class TemplateThumbnailService : ITemplateThumbnailService
                 return null;
             }
 
+            template.ThumbnailBytes = await System.IO.File.ReadAllBytesAsync(full, ct);
             File.Copy(full, finalPath, overwrite: true);
             try
             {

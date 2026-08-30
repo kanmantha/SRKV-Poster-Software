@@ -38,10 +38,7 @@
         <div class="col">
             <div class="template-card h-100 d-flex flex-column">
                 <div class="template-thumb">
-                    @if (!string.IsNullOrWhiteSpace(t.ThumbnailPath))
-                    {
-                        <img src="@t.ThumbnailPath" alt="@t.Name" loading="lazy" />
-                    }
+                    <img src="@Url.Action("Thumbnail", "Templates", new { id = t.Id })" alt="@t.Name" loading="lazy" />
                     <span class="badge template-badge @(t.IsSystem ? "text-bg-dark" : t.TenantId == currentTenantId ? "text-bg-primary" : "text-bg-secondary")">
                         @(t.IsSystem ? "System" : t.TenantId == currentTenantId ? "Yours" : "Other")
                     </span>

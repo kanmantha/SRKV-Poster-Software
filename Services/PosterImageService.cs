@@ -159,7 +159,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
                 {
                     using (logo)
                     {
-                        DrawTenantLogo(canvas, logo);
+                        DrawTenantLogo(canvas, logo, template?.LogoPosition);
                     }
                 }
             }
@@ -1748,15 +1748,57 @@ public class SkiaSharpPosterImageService : IPosterImageService
         }
     }
 
-    private static void DrawTenantLogo(SKCanvas canvas, SKBitmap logo)
+    private static void DrawTenantLogo(SKCanvas canvas, SKBitmap logo, string? position = null)
     {
         const float pad = 40f;
         const float targetHeight = 110f;
+        position ??= "top-right";
+
+        if (position.Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         var scale = targetHeight / logo.Height;
         var scaledWidth = logo.Width * scale;
 
-        var dest = new SKRect(Width - pad - scaledWidth, pad, Width - pad, pad + targetHeight);
+        float left;
+        float top;
+        var rightAligned = position.Contains("right", StringComparison.OrdinalIgnoreCase);
+        var bottomAligned = position.Contains("bottom", StringComparison.OrdinalIgnoreCase);
+        var centeredVertically = position.Contains("middle", StringComparison.OrdinalIgnoreCase)
+                                 || position.Equals("center", StringComparison.OrdinalIgnoreCase);
+        var centeredHorizontally = position.Contains("top-center", StringComparison.OrdinalIgnoreCase)
+                                   || position.Contains("bottom-center", StringComparison.OrdinalIgnoreCase)
+                                   || position.Equals("center", StringComparison.OrdinalIgnoreCase);
+
+        if (centeredHorizontally)
+        {
+            left = (Width - scaledWidth) / 2f;
+        }
+        else if (rightAligned)
+        {
+            left = Width - pad - scaledWidth;
+        }
+        else
+        {
+            left = pad;
+        }
+
+        if (bottomAligned)
+        {
+            top = Height - pad - targetHeight;
+        }
+        else if (centeredVertically)
+        {
+            top = (Height - targetHeight) / 2f;
+        }
+        else
+        {
+            top = pad;
+        }
+
+        var dest = new SKRect(left, top, left + scaledWidth, top + targetHeight);
 
         // Soft white backing keeps dark logos readable on dark posters.
         using var backing = new SKPaint

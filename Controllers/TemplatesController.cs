@@ -51,10 +51,10 @@ public class TemplatesController : Controller
         ViewBag.TenantNames = await db.Tenants.AsNoTracking()
             .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
 
-        var changed = false;
+var changed = false;
         foreach (var t in templates)
         {
-            if (string.IsNullOrWhiteSpace(t.ThumbnailPath))
+            if (string.IsNullOrWhiteSpace(t.ThumbnailPath) || t.ThumbnailBytes is not { Length: > 0 })
             {
                 var path = await _thumbnails.EnsureThumbnailAsync(t, ct);
                 if (!string.IsNullOrWhiteSpace(path))
@@ -71,9 +71,27 @@ public class TemplatesController : Controller
             foreach (var t in templates.Where(t => t.Id > 0 && !string.IsNullOrWhiteSpace(t.ThumbnailPath)))
             {
                 var entity = await dbw.PosterTemplates.FindAsync([t.Id], ct);
-                if (entity is not null && entity.ThumbnailPath != t.ThumbnailPath)
+                if (entity is null)
+                {
+                    continue;
+                }
+
+                var dirty = false;
+                if (entity.ThumbnailPath != t.ThumbnailPath)
                 {
                     entity.ThumbnailPath = t.ThumbnailPath;
+                    dirty = true;
+                }
+
+                if (entity.ThumbnailBytes is not { Length: > 0 } && t.ThumbnailBytes is { Length: > 0 })
+                {
+                    entity.ThumbnailBytes = t.ThumbnailBytes;
+                    dirty = true;
+                }
+
+                if (dirty)
+                {
+                    dbw.PosterTemplates.Update(entity);
                 }
             }
 
@@ -81,6 +99,48 @@ public class TemplatesController : Controller
         }
 
         return View(templates);
+    }
+
+    /// <summary>Serves a template thumbnail from the database (regenerating and persisting
+    /// on demand when it is missing), so the template gallery survives Render's ephemeral
+    /// disk being wiped on every deploy/restart.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Thumbnail(int id, CancellationToken ct)
+    {
+        _ = id;
+
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var template = await db.PosterTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id
+                && (_tenant.IsAdmin || t.TenantId == _tenant.TenantId || t.TenantId == 0), ct);
+
+        if (template is null)
+        {
+            return NotFound();
+        }
+
+        if (template.ThumbnailBytes is not { Length: > 0 })
+        {
+            var path = await _thumbnails.EnsureThumbnailAsync(template, ct);
+            if (string.IsNullOrWhiteSpace(path) || template.ThumbnailBytes is not { Length: > 0 })
+            {
+                return NotFound();
+            }
+
+            var entity = await db.PosterTemplates.FindAsync([id], ct);
+            if (entity is not null)
+            {
+                entity.ThumbnailBytes = template.ThumbnailBytes;
+                if (string.IsNullOrWhiteSpace(entity.ThumbnailPath))
+                {
+                    entity.ThumbnailPath = path;
+                }
+
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        return File(template.ThumbnailBytes!, "image/png");
     }
 
     public IActionResult Use(int id)
@@ -256,8 +316,8 @@ public class TemplatesController : Controller
             message = result.Summary,
             image = result.Image is null ? null : "data:image/jpeg;base64," + Convert.ToBase64String(result.Image),
             backgroundUrl = template.IsImported ? template.BackgroundImagePath + "?v=" + DateTime.UtcNow.Ticks : null,
-            thumbUrl = !template.IsImported && !string.IsNullOrWhiteSpace(template.ThumbnailPath)
-                ? template.ThumbnailPath + "?v=" + DateTime.UtcNow.Ticks
+thumbUrl = !template.IsImported && !string.IsNullOrWhiteSpace(template.ThumbnailPath)
+                ? Url.Action(nameof(Thumbnail), "Templates", new { id = template.Id }) + "?v=" + DateTime.UtcNow.Ticks
                 : null,
             boxes = result.Boxes.Select(b => new { type = b.Type, x = b.X, y = b.Y, w = b.W, h = b.H }),
             treatment = new { kind = result.Treatment.Kind }
@@ -339,8 +399,9 @@ public class TemplatesController : Controller
         model.TenantId = _tenant.TenantId;
         model.IsSystem = false;
         model.UpdatedAt = DateTime.UtcNow;
-        model.Theme = string.IsNullOrWhiteSpace(model.Theme) ? "colorful" : model.Theme.Trim().ToLowerInvariant();
+model.Theme = string.IsNullOrWhiteSpace(model.Theme) ? "colorful" : model.Theme.Trim().ToLowerInvariant();
         model.Sector = SectorCatalog.Normalize(model.Sector);
+        model.LogoPosition = string.IsNullOrWhiteSpace(model.LogoPosition) ? "top-right" : model.LogoPosition.Trim().ToLowerInvariant();
 
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
         if (await db.PosterTemplates.AnyAsync(t => t.TenantId == model.TenantId && t.Name == model.Name, ct))
@@ -425,6 +486,7 @@ public class TemplatesController : Controller
             template.BackgroundDim = Math.Clamp(model.BackgroundDim, 0, 90);
         }
 
+        template.LogoPosition = string.IsNullOrWhiteSpace(model.LogoPosition) ? "top-right" : model.LogoPosition.Trim().ToLowerInvariant();
         template.IsActive = model.IsActive;
         template.UpdatedAt = DateTime.UtcNow;
 

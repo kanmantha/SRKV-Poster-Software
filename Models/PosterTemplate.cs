@@ -66,6 +66,16 @@ public class PosterTemplate
     [StringLength(500)]
     public string? ThumbnailPath { get; set; }
 
+    /// <summary>Rendered thumbnail PNG persisted in the database so the template gallery
+    /// survives ephemeral disks (Render wipes wwwroot on every deploy/restart).</summary>
+    public byte[]? ThumbnailBytes { get; set; }
+
+    /// <summary>Where the organisation logo is overlaid on posters made with this template.
+    /// One of: top-left | top-center | top-right | middle-left | center | middle-right |
+    /// bottom-left | bottom-center | bottom-right | none.</summary>
+    [StringLength(20)]
+    public string LogoPosition { get; set; } = "top-right";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
