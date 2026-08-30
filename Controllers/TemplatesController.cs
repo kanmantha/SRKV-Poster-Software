@@ -14,7 +14,10 @@ namespace DailyPosterGenerator.Controllers;
 [Authorize]
 public class TemplatesController : Controller
 {
-    private static readonly string[] ThemeOptions = { "srv", "colorful", "light", "dark", "auto" };
+    private static readonly string[] ThemeOptions =
+        new[] { "srv", "colorful", "light", "dark", "auto" }
+            .Concat(PosterTheme.SignatureModes)
+            .ToArray();
 
     private readonly IDbContextFactory<DailyPosterDbContext> _dbFactory;
     private readonly TenantContext _tenant;

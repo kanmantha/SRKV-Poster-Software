@@ -266,7 +266,8 @@ public class SkiaSharpPosterImageService : IPosterImageService
         {
             mode = "dark";
         }
-        else if (setting is "light" or "dark" or "colorful" or "srv")
+        else if (setting is "light" or "dark" or "colorful" or "srv"
+            || PosterTheme.SignatureModes.Contains(setting, StringComparer.OrdinalIgnoreCase))
         {
             mode = setting;
         }
@@ -1859,6 +1860,39 @@ public sealed record PosterTheme
     public bool IsColorful { get; init; }
     public bool IsSrv { get; init; }
 
+    public static readonly string[] SignatureModes =
+    {
+        "sunset", "ocean", "forest", "royal", "neon", "espresso", "teal", "crimson",
+        "gold", "plum", "jade", "merlot", "charcoal", "midnight", "mint", "blush",
+        "cream", "slate", "citrus"
+    };
+
+    private readonly record struct SignaturePalette(SKColor G0, SKColor G1, SKColor Accent, bool Light);
+
+    private static readonly Dictionary<string, SignaturePalette> SignatureThemes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "sunset", new(new SKColor(255, 84, 56), new SKColor(255, 44, 103), new SKColor(255, 209, 102), false) },
+            { "ocean",  new(new SKColor(6, 36, 70), new SKColor(13, 122, 166), new SKColor(94, 234, 212), false) },
+            { "forest", new(new SKColor(13, 43, 28), new SKColor(32, 112, 64), new SKColor(252, 211, 77), false) },
+            { "royal",  new(new SKColor(21, 25, 84), new SKColor(89, 29, 135), new SKColor(245, 197, 24), false) },
+            { "neon",   new(new SKColor(13, 13, 28), new SKColor(46, 18, 86), new SKColor(34, 211, 238), false) },
+            { "espresso", new(new SKColor(32, 23, 16), new SKColor(86, 54, 30), new SKColor(242, 199, 143), false) },
+            { "teal",   new(new SKColor(2, 45, 53), new SKColor(16, 117, 128), new SKColor(255, 232, 163), false) },
+            { "crimson", new(new SKColor(46, 8, 20), new SKColor(130, 28, 60), new SKColor(255, 202, 202), false) },
+            { "gold",   new(new SKColor(46, 36, 8), new SKColor(126, 96, 20), new SKColor(253, 230, 138), false) },
+            { "plum",   new(new SKColor(42, 10, 66), new SKColor(112, 30, 112), new SKColor(249, 168, 212), false) },
+            { "jade",   new(new SKColor(12, 28, 26), new SKColor(18, 112, 82), new SKColor(167, 243, 208), false) },
+            { "merlot", new(new SKColor(36, 10, 18), new SKColor(98, 24, 42), new SKColor(254, 202, 202), false) },
+            { "charcoal", new(new SKColor(18, 18, 20), new SKColor(58, 58, 62), new SKColor(250, 204, 21), false) },
+            { "midnight", new(new SKColor(10, 16, 40), new SKColor(30, 58, 110), new SKColor(245, 158, 11), false) },
+            { "mint",   new(new SKColor(230, 250, 240), new SKColor(208, 240, 224), new SKColor(15, 118, 110), true) },
+            { "blush",  new(new SKColor(255, 241, 244), new SKColor(255, 227, 233), new SKColor(190, 93, 115), true) },
+            { "cream",  new(new SKColor(252, 247, 238), new SKColor(242, 233, 218), new SKColor(161, 98, 7), true) },
+            { "slate",  new(new SKColor(245, 247, 250), new SKColor(226, 232, 240), new SKColor(51, 65, 85), true) },
+            { "citrus", new(new SKColor(255, 250, 230), new SKColor(254, 240, 138), new SKColor(202, 138, 4), true) }
+        };
+
     public static PosterTheme From(SKColor[] palette, string mode)
     {
         if (mode == "srv")
@@ -1880,6 +1914,27 @@ public sealed record PosterTheme
                 ChipText = SKColors.White,
                 IsLight = true,
                 IsSrv = true
+            };
+        }
+
+        if (SignatureThemes.TryGetValue(mode, out var sig))
+        {
+            return new PosterTheme
+            {
+                Gradient = new[] { sig.G0, sig.G1 },
+                Accent = sig.Accent,
+                Secondary = sig.Accent,
+                Text = sig.Light ? new SKColor(32, 28, 22) : SKColors.White,
+                Muted = sig.Light ? new SKColor(70, 64, 54, 235) : new SKColor(255, 255, 255, 222),
+                Faint = sig.Light ? new SKColor(110, 102, 90, 190) : new SKColor(255, 255, 255, 140),
+                Tag = sig.Light ? new SKColor(38, 34, 28, 255) : new SKColor(255, 255, 255, 235),
+                Shadow = new SKColor(0, 0, 0, sig.Light ? (byte)26 : (byte)70),
+                Watermark = new SKColor(sig.Accent.Red, sig.Accent.Green, sig.Accent.Blue, sig.Light ? (byte)16 : (byte)38),
+                Noise = new SKColor(sig.Light ? (byte)20 : (byte)255, sig.Light ? (byte)20 : (byte)255, sig.Light ? (byte)20 : (byte)255, sig.Light ? (byte)16 : (byte)22),
+                Frame = sig.Light ? new SKColor(40, 36, 30, 52) : new SKColor(255, 255, 255, 70),
+                Glow = new SKColor(sig.Accent.Red, sig.Accent.Green, sig.Accent.Blue, sig.Light ? (byte)26 : (byte)30),
+                ChipText = SKColors.White,
+                IsLight = sig.Light
             };
         }
 

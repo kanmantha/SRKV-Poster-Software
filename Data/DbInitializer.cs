@@ -198,30 +198,19 @@ public static class DbInitializer
             .Where(t => t.TenantId == systemTenantId)
             .ToListAsync();
 
-        var desired = new[]
+        var catalog = SystemTemplateCatalog.Build();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in catalog)
         {
-            new { Name = "SRV School Classic", Sector = SectorCatalog.Education,
-                  Desc = "Default school poster with the SRV crest.", Theme = "srv", Accent = (string?)null },
-            new { Name = "Vibrant Celebration", Sector = SectorCatalog.General,
-                  Desc = "Colorful festive style for celebrations and special days.", Theme = "colorful", Accent = (string?)"#FF6600" },
-            new { Name = "Minimal Light", Sector = SectorCatalog.General,
-                  Desc = "Clean, light, modern design.", Theme = "light", Accent = (string?)"#1E5B9A" },
-            new { Name = "Midnight", Sector = SectorCatalog.General,
-                  Desc = "Dark elegant theme for evenings and formal events.", Theme = "dark", Accent = (string?)"#F5C518" },
-            new { Name = "Auto Theme", Sector = SectorCatalog.General,
-                  Desc = "Adapts to the event and time of day.", Theme = "auto", Accent = (string?)null },
-            new { Name = "Menu of the Day", Sector = SectorCatalog.Restaurant,
-                  Desc = "Appetising layout for today's menu and specials.", Theme = "light", Accent = (string?)"#C0392B" },
-            new { Name = "Election Day Alert", Sector = SectorCatalog.Politics,
-                  Desc = "Bold campaign style for rallies and polling days.", Theme = "dark", Accent = (string?)"#2E86DE" },
-            new { Name = "Game Day", Sector = SectorCatalog.Sports,
-                  Desc = "Energetic layout for matches, fixtures and results.", Theme = "colorful", Accent = (string?)"#27AE60" },
-            new { Name = "Daily Offer", Sector = SectorCatalog.Retail,
-                  Desc = "Simple, punchy layout for deals and new stock.", Theme = "light", Accent = (string?)"#8E44AD" }
-        };
+            if (!names.Add(t.Name))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate system template name in catalog: '{t.Name}'.");
+            }
+        }
 
         var changed = false;
-        foreach (var t in desired)
+        foreach (var t in catalog)
         {
             var entity = existing.FirstOrDefault(e => e.Name == t.Name);
             if (entity is null)
