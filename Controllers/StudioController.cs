@@ -16,6 +16,7 @@ public class StudioController : Controller
     private readonly IStudioPromptService _studio;
     private readonly IPosterGenerationService _generation;
     private readonly IEventService _events;
+    private readonly IWebHostEnvironment _env;
     private readonly TenantContext _tenant;
     private readonly ILogger<StudioController> _logger;
 
@@ -24,6 +25,7 @@ public class StudioController : Controller
         IStudioPromptService studio,
         IPosterGenerationService generation,
         IEventService events,
+        IWebHostEnvironment env,
         TenantContext tenant,
         ILogger<StudioController> logger)
     {
@@ -31,6 +33,7 @@ public class StudioController : Controller
         _studio = studio;
         _generation = generation;
         _events = events;
+        _env = env;
         _tenant = tenant;
         _logger = logger;
     }
@@ -154,7 +157,7 @@ public class StudioController : Controller
                 accent = template.AccentColor,
                 sectorLabel = SectorCatalog.Label(plan.Sector),
                 title = plan.Title,
-                previewUrl = previewPath,
+                previewUrl = Url.Action(nameof(PreviewImage), "Studio", new { name = Path.GetFileName(previewPath) }),
                 eventDate = when.ToString("yyyy-MM-dd"),
                 dateAutoSet,
                 eventCount = dayEvents.Count,
@@ -166,6 +169,30 @@ public class StudioController : Controller
             _logger.LogError(ex, "Studio create failed for prompt '{Prompt}' (round {Round}).", prompt, round);
             return StatusCode(500, new { ok = false, error = $"Something went wrong while designing your poster: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// Serves a just-generated Studio preview from disk. Render's production
+    /// hosting uses map-based static assets, so runtime preview files are read
+    /// through this action (like HomeController.Preview) instead of a static URL.
+    /// </summary>
+    [HttpGet]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    public IActionResult PreviewImage(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^preview_[0-9a-f]{10}\\.png$"))
+        {
+            return NotFound();
+        }
+
+        var wwwRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+        var full = Path.Combine(wwwRoot, "posters", "previews", name);
+        if (!System.IO.File.Exists(full))
+        {
+            return NotFound();
+        }
+
+        return File(System.IO.File.OpenRead(full), "image/png");
     }
 
     /// <summary>Saves the approved design as a real poster in the gallery.</summary>
