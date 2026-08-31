@@ -152,7 +152,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
             {
                 if (!logosOnly)
                 {
-                    DrawContent(canvas, poster, theme, brand, hero);
+                    DrawContent(canvas, poster, theme, brand, hero, template?.Id ?? poster.TemplateId ?? 0);
                 }
                 var logo = await LoadTenantLogoAsync(poster.TenantId, ct);
                 if (logo is not null)
@@ -653,7 +653,7 @@ public class SkiaSharpPosterImageService : IPosterImageService
 
     // ---------------------------------------------------------------- content
 
-    private void DrawContent(SKCanvas canvas, Poster poster, PosterTheme theme, Brand brand, SKImage? hero = null)
+    private void DrawContent(SKCanvas canvas, Poster poster, PosterTheme theme, Brand brand, SKImage? hero = null, int templateId = 0)
     {
         const int margin = 92;
         const int usable = Width - (margin * 2);
@@ -668,16 +668,8 @@ public class SkiaSharpPosterImageService : IPosterImageService
         using var sansBold = SafeTypeface("Segoe UI", SKFontStyle.Bold);
         using var mono = SafeTypeface("Consolas", SKFontStyle.Normal);
 
-        // ---- 1. Header row -------------------------------------------------
-        using (var markPaint = new SKPaint { Color = theme.Accent, IsAntialias = true })
-        {
-            canvas.DrawRoundRect(SKRect.Create(margin, 62, 44, 44), 12, 12, markPaint);
-        }
-        using (var markTextPaint = new SKPaint { Color = theme.ChipText, IsAntialias = true })
-        using (var markFont = new SKFont(sansBold, 24))
-        {
-            canvas.DrawText("DP", margin + 22, 92, SKTextAlign.Center, markFont, markTextPaint);
-        }
+        // ---- 1. Header row: unique per-template emblem badge ----------------
+        DrawTemplateEmblem(canvas, theme, templateId, margin + 22, 84, 22f);
         using (var brandPaint = new SKPaint { Color = theme.Text, IsAntialias = true })
         using (var brandFont = new SKFont(sansBold, 25))
         {
@@ -1024,6 +1016,109 @@ public class SkiaSharpPosterImageService : IPosterImageService
             _logger.LogDebug(ex, "Failed to knock out school crest background.");
             return src;
         }
+    }
+
+    private void DrawTemplateEmblem(SKCanvas canvas, PosterTheme theme, int templateId, float cx, float cy, float r)
+    {
+        var hue = (templateId * 53.0f) % 360f;
+        theme.Accent.ToHsl(out var h, out var s, out var l);
+        var primary = SKColor.FromHsl((h + hue) % 360f, Math.Min(1f, s + 0.06f), Math.Clamp(l, 0.26f, 0.58f));
+        var rim = SKColor.FromHsl((h + hue + 48f) % 360f, Math.Min(1f, s + 0.14f), Math.Clamp(l + 0.28f, 0.55f, 0.88f));
+
+        float lum = 0.299f * primary.Red + 0.587f * primary.Green + 0.114f * primary.Blue;
+        var glyphColor = lum < 130f ? new SKColor(255, 255, 255, 235) : new SKColor(26, 26, 40, 225);
+
+        using var badge = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = primary };
+        using var rimPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = r * 0.16f, Color = rim };
+        canvas.DrawCircle(cx, cy, r, badge);
+        canvas.DrawCircle(cx, cy, r, rimPaint);
+
+        var glyph = Math.Abs(templateId) % 12;
+        using var fill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = glyphColor };
+        using var stroke = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = r * 0.30f,
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round,
+            Color = glyphColor
+        };
+        var scale = r / 10f;
+
+        switch (glyph)
+        {
+            case 0: // star
+                DrawEmblemPath(canvas, "M0,-10 L2.36,-3.09 L9.51,-3.09 L3.82,1.18 L5.88,8.09 L0,4 L-5.88,8.09 L-3.82,1.18 L-9.51,-3.09 L-2.36,-3.09 Z", cx, cy, scale, fill);
+                break;
+            case 1: // moon (crescent)
+                using (var moon = SKPath.ParseSvgPathData("M0,-10 A10,10 0 1,0 0,10 A10,10 0 1,0 0,-10 Z M6,-2 A8.5,8.5 0 1,1 6,2 A8.5,8.5 0 1,1 6,-2 Z"))
+                {
+                    moon.FillType = SKPathFillType.EvenOdd;
+                    canvas.DrawPath(TransformPath(moon, cx, cy, scale), fill);
+                }
+                break;
+            case 2: // lightning bolt
+                DrawEmblemPath(canvas, "M2,-10 L-6,2 L-1,2 L-3,10 L6,-2 L1,-2 Z", cx, cy, scale, fill);
+                break;
+            case 3: // leaf
+                DrawEmblemPath(canvas, "M0,10 C9,9 9,-9 0,-10 C-9,-9 -9,9 0,10 Z", cx, cy, scale, fill);
+                break;
+            case 4: // flame
+                DrawEmblemPath(canvas, "M0,-10 C4,-5 8,-3 6,2 C5,4 5,8 0,10 C-1,6 -1,5 -4,3 C-8,0 -4,-6 0,-10 Z", cx, cy, scale, fill);
+                break;
+            case 5: // hexagon
+                DrawEmblemPath(canvas, "M0,-10 L8.66,-5 L8.66,5 L0,10 L-8.66,5 L-8.66,-5 Z", cx, cy, scale, fill);
+                break;
+            case 6: // diamond
+                DrawEmblemPath(canvas, "M0,-10 L7,0 L0,10 L-7,0 Z", cx, cy, scale, fill);
+                break;
+            case 7: // triangle
+                DrawEmblemPath(canvas, "M0,-9 L8.5,7 L-8.5,7 Z", cx, cy, scale, fill);
+                break;
+            case 8: // plus
+                DrawEmblemPath(canvas, "M-2,-10 L2,-10 L2,-2 L10,-2 L10,2 L2,2 L2,10 L-2,10 L-2,2 L-10,2 L-10,-2 L-2,-2 Z", cx, cy, scale, fill);
+                break;
+            case 9: // bullseye ring
+                using (var ring = SKPath.ParseSvgPathData("M0,-10 A10,10 0 1,0 0,10 A10,10 0 1,0 0,-10 Z M0,-5 A5,5 0 1,1 0,5 A5,5 0 1,1 0,-5 Z"))
+                {
+                    ring.FillType = SKPathFillType.EvenOdd;
+                    canvas.DrawPath(TransformPath(ring, cx, cy, scale), fill);
+                }
+                break;
+            case 10: // sun
+                canvas.DrawCircle(cx, cy, r * 0.42f, fill);
+                for (var i = 0; i < 8; i++)
+                {
+                    var a = (float)(Math.PI / 4 * i);
+                    var (vx, vy) = (MathF.Cos(a) * r * 0.72f, MathF.Sin(a) * r * 0.72f);
+                    canvas.DrawLine(new SKPoint(cx + vx, cy + vy), new SKPoint(cx + vx * 1.55f, cy + vy * 1.55f), stroke);
+                }
+                break;
+            case 11: // flower
+                for (var i = 0; i < 5; i++)
+                {
+                    var a = (float)(Math.PI * 0.4 * i - Math.PI / 2);
+                    var (px, py) = (MathF.Cos(a) * r * 0.55f, MathF.Sin(a) * r * 0.55f);
+                    canvas.DrawCircle(cx + px, cy + py, r * 0.30f, fill);
+                }
+                canvas.DrawCircle(cx, cy, r * 0.32f, fill);
+                break;
+        }
+    }
+
+    private static SKPath TransformPath(SKPath path, float cx, float cy, float scale)
+    {
+        var copy = new SKPath(path);
+        copy.Transform(SKMatrix.CreateScaleTranslation(scale, scale, cx, cy));
+        return copy;
+    }
+
+    private static void DrawEmblemPath(SKCanvas canvas, string svgPath, float cx, float cy, float scale, SKPaint paint)
+    {
+        using var path = SKPath.ParseSvgPathData(svgPath);
+        path.Transform(SKMatrix.CreateScaleTranslation(scale, scale, cx, cy));
+        canvas.DrawPath(path, paint);
     }
 
     private void DrawSrvBackground(SKCanvas canvas, PosterTheme theme)
