@@ -391,7 +391,7 @@ thumbUrl = !template.IsImported && !string.IsNullOrWhiteSpace(template.Thumbnail
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(PosterTemplate model, CancellationToken ct)
+public async Task<IActionResult> Create(PosterTemplate model, IFormFile? logo, CancellationToken ct)
     {
         if (!ModelState.IsValid)
         {
@@ -405,6 +405,17 @@ thumbUrl = !template.IsImported && !string.IsNullOrWhiteSpace(template.Thumbnail
 model.Theme = string.IsNullOrWhiteSpace(model.Theme) ? "colorful" : model.Theme.Trim().ToLowerInvariant();
         model.Sector = SectorCatalog.Normalize(model.Sector);
         model.LogoPosition = string.IsNullOrWhiteSpace(model.LogoPosition) ? "top-right" : model.LogoPosition.Trim().ToLowerInvariant();
+
+        var (logoError, logoBytes, logoMime) = await TryReadLogoAsync(logo, ct);
+        if (logoError is not null)
+        {
+            ModelState.AddModelError(string.Empty, logoError);
+            ViewBag.ThemeOptions = ThemeOptions;
+            return View(model);
+        }
+
+        model.LogoBytes = logoBytes;
+        model.LogoMime = logoMime;
 
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
         if (await db.PosterTemplates.AnyAsync(t => t.TenantId == model.TenantId && t.Name == model.Name, ct))
@@ -585,50 +596,15 @@ TempData["Success"] = $"Template '{template.Name}' deleted.";
             return NotFound();
         }
 
-        if (logo is null || logo.Length == 0)
+        var (error, logoBytes, logoMime) = await TryReadLogoAsync(logo, ct);
+        if (error is not null)
         {
-            TempData["Error"] = "Choose a logo file first.";
+            TempData["Error"] = error;
             return RedirectToAction(nameof(Edit), new { id });
         }
 
-        if (logo.Length > MaxLogoBytes)
-        {
-            TempData["Error"] = "Logo must be 4 MB or smaller.";
-            return RedirectToAction(nameof(Edit), new { id });
-        }
-
-        var extension = Path.GetExtension(logo.FileName).ToLowerInvariant();
-        if (!LogoExtensions.Contains(extension))
-        {
-            TempData["Error"] = "Logo must be a PNG, JPG or WEBP image.";
-            return RedirectToAction(nameof(Edit), new { id });
-        }
-
-        using var ms = new MemoryStream();
-        await logo.CopyToAsync(ms, ct);
-
-        // Reject non-image content defensively (skipped for tiny files is not a concern here).
-        ms.Position = 0;
-        var probe = new byte[16];
-        var read = ms.Read(probe, 0, probe.Length);
-        var isImage = read >= 4
-            && ((probe[0] == 0x89 && probe[1] == 0x50 && probe[2] == 0x4E && probe[3] == 0x47)   // PNG
-                || (probe[0] == 0xFF && probe[1] == 0xD8)                                      // JPEG
-                || (probe[0] == 0x52 && probe[1] == 0x49 && probe[2] == 0x46 && probe[3] == 0x46)); // WEBP (RIFF....WEBP)
-        if (!isImage)
-        {
-            TempData["Error"] = "That file does not look like a PNG, JPG or WEBP image.";
-            return RedirectToAction(nameof(Edit), new { id });
-        }
-
-        template.LogoBytes = ms.ToArray();
-        template.LogoMime = extension switch
-        {
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            _ => "image/png"
-        };
+        template.LogoBytes = logoBytes;
+        template.LogoMime = logoMime;
         template.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
@@ -710,6 +686,52 @@ TempData["Success"] = $"Template '{template.Name}' deleted.";
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>Validates and reads an uploaded logo file, returning (error, bytes, mime).
+    /// A null error means the logo is valid and ready to store.</summary>
+    private static async Task<(string? Error, byte[]? Bytes, string? Mime)> TryReadLogoAsync(IFormFile? logo, CancellationToken ct)
+    {
+        if (logo is null || logo.Length == 0)
+        {
+            return ("Choose a logo file first.", null, null);
+        }
+
+        if (logo.Length > MaxLogoBytes)
+        {
+            return ("Logo must be 4 MB or smaller.", null, null);
+        }
+
+        var extension = Path.GetExtension(logo.FileName).ToLowerInvariant();
+        if (!LogoExtensions.Contains(extension))
+        {
+            return ("Logo must be a PNG, JPG or WEBP image.", null, null);
+        }
+
+        using var ms = new MemoryStream();
+        await logo.CopyToAsync(ms, ct);
+
+        // Reject non-image content defensively.
+        ms.Position = 0;
+        var probe = new byte[16];
+        var read = ms.Read(probe, 0, probe.Length);
+        var isImage = read >= 4
+            && ((probe[0] == 0x89 && probe[1] == 0x50 && probe[2] == 0x4E && probe[3] == 0x47)   // PNG
+                || (probe[0] == 0xFF && probe[1] == 0xD8)                                      // JPEG
+                || (probe[0] == 0x52 && probe[1] == 0x49 && probe[2] == 0x46 && probe[3] == 0x46)); // WEBP (RIFF....WEBP)
+        if (!isImage)
+        {
+            return ("That file does not look like a PNG, JPG or WEBP image.", null, null);
+        }
+
+        var mime = extension switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => "image/png"
+        };
+        return (null, ms.ToArray(), mime);
     }
 
     /// <summary>Returns <paramref name="desired"/> untouched when free within the

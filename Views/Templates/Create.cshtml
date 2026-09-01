@@ -9,7 +9,7 @@
         <h1 class="auth-title">Create a template</h1>
         <p class="text-muted mb-4">A template controls the look of your posters. Today's events are always rendered on top of it.</p>
 
-        <form asp-action="Create" method="post" novalidate>
+        <form asp-action="Create" method="post" enctype="multipart/form-data" novalidate>
             @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -33,6 +33,12 @@
             <div class="mb-3">
                 <label asp-for="Description" class="form-label">Description</label>
                 <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Logo (optional)</label>
+                <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" class="form-control" />
+                <span class="form-text small text-muted">PNG, JPG or WEBP, max 4 MB. If none is uploaded, your organisation logo (from Settings) is used on posters.</span>
             </div>
 
             <div class="mb-3">
