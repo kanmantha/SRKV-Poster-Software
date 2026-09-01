@@ -209,7 +209,7 @@
                 document.getElementById('studioTheme').textContent = data.theme;
                 document.getElementById('studioRound').textContent = data.round;
                 document.getElementById('studioSwatch').style.background = data.accent || 'transparent';
-                document.getElementById('studioImg').src = data.previewUrl + '?t=' + Date.now();
+                document.getElementById('studioImg').src = data.previewUrl + (data.previewUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
                 document.getElementById('savePrompt').value = prompt;
                 document.getElementById('saveTemplateId').value = data.templateId;
                 document.getElementById('saveDate').value = data.eventDate || dateInput.value;
