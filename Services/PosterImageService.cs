@@ -148,23 +148,32 @@ public class SkiaSharpPosterImageService : IPosterImageService
                 DrawBackground(canvas, poster, theme);
             }
 
-            if (!theme.IsSrv)
+            if (!theme.IsSrv && !logosOnly)
             {
-                if (!logosOnly)
-                {
-                    DrawContent(canvas, poster, theme, brand, hero, template?.Id ?? poster.TemplateId ?? 0);
-                }
-                var logo = await LoadTenantLogoAsync(poster.TenantId, ct);
-                if (logo is not null)
-                {
-                    using (logo)
-                    {
-                        DrawTenantLogo(canvas, logo, template?.LogoPosition);
-                    }
-                }
+                DrawContent(canvas, poster, theme, brand, hero, template?.Id ?? poster.TemplateId ?? 0);
             }
 
             hero?.Dispose();
+        }
+
+        // Per-template uploaded logo wins; otherwise fall back to the tenant's logo.
+        // The template mode layouts and srv theme do not overlay a tenant logo by default,
+        // but an explicitly uploaded template logo is always respected.
+        if (template?.LogoBytes is { Length: > 0 })
+        {
+            using var templateLogo = await LoadTemplateLogoAsync(template.LogoBytes, ct);
+            if (templateLogo is not null)
+            {
+                DrawTenantLogo(canvas, templateLogo, template.LogoPosition);
+            }
+        }
+        else if (!templateMode && !theme.IsSrv)
+        {
+            using var logo = await LoadTenantLogoAsync(poster.TenantId, ct);
+            if (logo is not null)
+            {
+                DrawTenantLogo(canvas, logo, template?.LogoPosition);
+            }
         }
 
         canvas.Flush();
@@ -1809,6 +1818,26 @@ public class SkiaSharpPosterImageService : IPosterImageService
     }
 
     // ---------------------------------------------------------------- save
+
+    /// <summary>Decodes a per-template uploaded logo (PNG/JPG/WEBP bytes) for overlay.</summary>
+    private async Task<SKBitmap?> LoadTemplateLogoAsync(byte[]? logoBytes, CancellationToken ct)
+    {
+        if (logoBytes is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        try
+        {
+            await using var stream = new MemoryStream(logoBytes);
+            return SKBitmap.Decode(stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not decode uploaded template logo.");
+            return null;
+        }
+    }
 
     /// <summary>Loads the tenant's uploaded logo (if any) for overlay onto generated posters.</summary>
     private async Task<SKBitmap?> LoadTenantLogoAsync(int tenantId, CancellationToken ct)

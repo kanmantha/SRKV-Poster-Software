@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using DailyPosterGenerator.Data;
 using DailyPosterGenerator.Models;
 using DailyPosterGenerator.Services;
@@ -19,21 +19,24 @@ public class TemplatesController : Controller
             .Concat(PosterTheme.SignatureModes)
             .ToArray();
 
-    private readonly IDbContextFactory<DailyPosterDbContext> _dbFactory;
+private readonly IDbContextFactory<DailyPosterDbContext> _dbFactory;
     private readonly TenantContext _tenant;
     private readonly ITemplateThumbnailService _thumbnails;
     private readonly ITemplateImportService _import;
+    private readonly IWebHostEnvironment _env;
 
     public TemplatesController(
         IDbContextFactory<DailyPosterDbContext> dbFactory,
         TenantContext tenant,
         ITemplateThumbnailService thumbnails,
-        ITemplateImportService import)
+        ITemplateImportService import,
+        IWebHostEnvironment env)
     {
         _dbFactory = dbFactory;
         _tenant = tenant;
         _thumbnails = thumbnails;
         _import = import;
+        _env = env;
     }
 
     public async Task<IActionResult> Index(CancellationToken ct)
@@ -544,8 +547,169 @@ model.Theme = string.IsNullOrWhiteSpace(model.Theme) ? "colorful" : model.Theme.
         db.PosterTemplates.Remove(template);
         await db.SaveChangesAsync(ct);
 
-        TempData["Success"] = $"Template '{template.Name}' deleted.";
+TempData["Success"] = $"Template '{template.Name}' deleted.";
         return RedirectToAction(nameof(Index));
+    }
+
+    private static readonly string[] LogoExtensions = { ".png", ".jpg", ".jpeg", ".webp" };
+    private const long MaxLogoBytes = 4 * 1024 * 1024;
+
+    /// <summary>Serves the per-template uploaded logo image (or 404 when none).</summary>
+    [HttpGet]
+    public async Task<IActionResult> TemplateLogo(int id, CancellationToken ct)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var template = await db.PosterTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id
+                && (_tenant.IsAdmin || t.TenantId == _tenant.TenantId || t.TenantId == 0), ct);
+
+        if (template is null || template.LogoBytes is not { Length: > 0 })
+        {
+            return NotFound();
+        }
+
+        return File(template.LogoBytes, template.LogoMime ?? "image/png");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadLogo(int id, IFormFile? logo, CancellationToken ct)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var template = await db.PosterTemplates
+            .FirstOrDefaultAsync(t => t.Id == id && !t.IsSystem
+                && (t.TenantId == _tenant.TenantId || _tenant.IsAdmin), ct);
+
+        if (template is null)
+        {
+            return NotFound();
+        }
+
+        if (logo is null || logo.Length == 0)
+        {
+            TempData["Error"] = "Choose a logo file first.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        if (logo.Length > MaxLogoBytes)
+        {
+            TempData["Error"] = "Logo must be 4 MB or smaller.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        var extension = Path.GetExtension(logo.FileName).ToLowerInvariant();
+        if (!LogoExtensions.Contains(extension))
+        {
+            TempData["Error"] = "Logo must be a PNG, JPG or WEBP image.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        using var ms = new MemoryStream();
+        await logo.CopyToAsync(ms, ct);
+
+        // Reject non-image content defensively (skipped for tiny files is not a concern here).
+        ms.Position = 0;
+        var probe = new byte[16];
+        var read = ms.Read(probe, 0, probe.Length);
+        var isImage = read >= 4
+            && ((probe[0] == 0x89 && probe[1] == 0x50 && probe[2] == 0x4E && probe[3] == 0x47)   // PNG
+                || (probe[0] == 0xFF && probe[1] == 0xD8)                                      // JPEG
+                || (probe[0] == 0x52 && probe[1] == 0x49 && probe[2] == 0x46 && probe[3] == 0x46)); // WEBP (RIFF....WEBP)
+        if (!isImage)
+        {
+            TempData["Error"] = "That file does not look like a PNG, JPG or WEBP image.";
+            return RedirectToAction(nameof(Edit), new { id });
+        }
+
+        template.LogoBytes = ms.ToArray();
+        template.LogoMime = extension switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => "image/png"
+        };
+        template.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        // Regenerate the thumbnail so the gallery reflects the new logo.
+        template.ThumbnailBytes = null;
+        template.ThumbnailPath = null;
+        await DeleteCachedThumbnailAsync(id, ct);
+        var path = await _thumbnails.EnsureThumbnailAsync(template, ct);
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var entity = await db.PosterTemplates.FindAsync([id], ct);
+            if (entity is not null)
+            {
+                entity.ThumbnailPath = path;
+                entity.ThumbnailBytes = template.ThumbnailBytes;
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        TempData["Success"] = "Logo uploaded â€” it now appears on this template's posters and thumbnail.";
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveLogo(int id, CancellationToken ct)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var template = await db.PosterTemplates
+            .FirstOrDefaultAsync(t => t.Id == id && !t.IsSystem
+                && (t.TenantId == _tenant.TenantId || _tenant.IsAdmin), ct);
+
+        if (template is null)
+        {
+            return NotFound();
+        }
+
+        template.LogoBytes = null;
+        template.LogoMime = null;
+        template.UpdatedAt = DateTime.UtcNow;
+        template.ThumbnailBytes = null;
+        template.ThumbnailPath = null;
+        await db.SaveChangesAsync(ct);
+
+        await DeleteCachedThumbnailAsync(id, ct);
+        var path = await _thumbnails.EnsureThumbnailAsync(template, ct);
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var entity = await db.PosterTemplates.FindAsync([id], ct);
+            if (entity is not null)
+            {
+                entity.ThumbnailPath = path;
+                entity.ThumbnailBytes = template.ThumbnailBytes;
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        TempData["Success"] = "Logo removed.";
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+/// <summary>Deletes the on-disk cached thumbnail for a template so the next
+    /// EnsureThumbnailAsync call regenerates it from the current settings.</summary>
+    private async Task DeleteCachedThumbnailAsync(int id, CancellationToken ct)
+    {
+        var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+        var file = Path.Combine(webRoot, "templates", $"template_{id}.png");
+        try
+        {
+            if (System.IO.File.Exists(file))
+            {
+                System.IO.File.Delete(file);
+            }
+        }
+        catch
+        {
+            // best effort; the DB snapshot is authoritative
+        }
+
+        await Task.CompletedTask;
     }
 
     /// <summary>Returns <paramref name="desired"/> untouched when free within the

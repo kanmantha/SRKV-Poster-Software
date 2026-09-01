@@ -135,6 +135,36 @@
                 </form>
             </div>
         </div>
+
+        <div class="card step-card mb-3">
+            <div class="card-body">
+                <div class="small fw-semibold text-muted mb-3 text-uppercase" style="letter-spacing:.06em;">Template logo</div>
+                @if (Model.LogoBytes is { Length: > 0 })
+                {
+                    <div class="mb-2 text-center">
+                        <img src="@Url.Action("TemplateLogo", "Templates", new { id = Model.Id })"
+                             alt="Template logo" class="rounded border"
+                             style="max-height:64px; max-width:180px; background:#fff; padding:4px;" />
+                    </div>
+                }
+                <form asp-action="UploadLogo" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data"
+                      class="d-flex gap-2"
+                      onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Uploading...';">
+                    @Html.AntiForgeryToken()
+                    <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" class="form-control form-control-sm" required />
+                    <button type="submit" class="btn btn-sm btn-outline-primary flex-shrink-0">Upload</button>
+                </form>
+                @if (Model.LogoBytes is { Length: > 0 })
+                {
+                    <form asp-action="RemoveLogo" asp-route-id="@Model.Id" method="post" class="d-inline"
+                          onsubmit="return confirm('Remove this template''s logo?');">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 mt-1">Remove logo</button>
+                    </form>
+                }
+                <div class="form-text">Upload this template's own logo &mdash; it is drawn on the thumbnail and on every poster made with this template.</div>
+            </div>
+        </div>
     </div>
 
     <div class="col-lg-8">

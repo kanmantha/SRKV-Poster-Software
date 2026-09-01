@@ -76,6 +76,14 @@ public class PosterTemplate
     [StringLength(20)]
     public string LogoPosition { get; set; } = "top-right";
 
+    /// <summary>Uploaded per-template logo image bytes (PNG/JPG/WEBP) persisted in the
+    /// database so it survives Render's ephemeral disk, drawn on the template's posters.</summary>
+    public byte[]? LogoBytes { get; set; }
+
+    /// <summary>MIME type of the uploaded per-template logo, e.g. "image/png".</summary>
+    [StringLength(100)]
+    public string? LogoMime { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
